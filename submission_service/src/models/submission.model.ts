@@ -30,7 +30,6 @@ export interface ISubmission extends Document {
   updatedAt: Date;
   status: SubmissionStatus;
   submissionData: ISubmissionData;
-
   // we can add user id later for multi user support
 }
 

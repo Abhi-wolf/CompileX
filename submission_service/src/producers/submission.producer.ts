@@ -7,13 +7,14 @@ import { getCorrelationId } from "../utils/helpers/request.helpers";
 
 export interface ISubmissionJob {
   submissionId: string;
-  problem: IProblemDetails;
+  problem: IProblemDetails | null;
   code: string;
   language: SubmissionLanguage;
 }
 
 export async function addSubmissionJob(
   data: ISubmissionJob,
+  name?: string,
 ): Promise<string | null> {
   try {
     const correlationId = getCorrelationId();
@@ -23,10 +24,9 @@ export async function addSubmissionJob(
       correlationId: correlationId,
     };
 
-    const job = await submissionQueue.add(
-      serverConfig.EVALUATION_JOB_NAME,
-      jobData,
-    );
+    const jobName = name ? name : serverConfig.EVALUATION_JOB_NAME;
+
+    const job = await submissionQueue.add(jobName, jobData);
 
     logger.info(
       `Added submission job with ID: ${job.id} for submission ID: ${data.submissionId}`,

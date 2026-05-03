@@ -3,6 +3,7 @@ import { SubmissionFactory } from "../../factories/submission.factory";
 import { validateRequestBody, validateQueryParams } from "../../validators";
 import {
   createSubmissionSchema,
+  runCodeSchema,
   // updateSubmissionStatusSchema,
   submissionQuerySchema,
 } from "../../validators/submission.validator";
@@ -13,12 +14,23 @@ const submissionRouter = express.Router();
 // Get submission controller instance from factory
 const submissionController = SubmissionFactory.getSubmissionController();
 
+
+
+
 // POST /submissions - Create a new submission
 submissionRouter.post(
   "/",
   authorize,
   validateRequestBody(createSubmissionSchema),
   submissionController.createSubmission,
+);
+
+
+submissionRouter.post(
+  "/run",
+  authorize,
+  validateRequestBody(runCodeSchema),
+  submissionController.createRun,
 );
 
 // GET /submissions/:id - Get submission by ID

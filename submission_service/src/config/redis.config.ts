@@ -43,7 +43,13 @@ class RedisConnection {
     return this.redis;
   }
 
-  getRedis() {
+  async getRedisOrConnect(): Promise<Redis> {
+    if (this.redis) {
+      return this.redis;
+    }
+
+    this.redis = new Redis(serverConfig.REDIS_URL, redisBaseConfig);
+
     return this.redis;
   }
 

@@ -1,4 +1,4 @@
-# LeetCode Backend System
+# CompileX
 
 A scalable microservices-based backend system for running and evaluating code submissions, similar to LeetCode. Built with Node.js, TypeScript, and Docker.
 
@@ -62,8 +62,8 @@ This system consists of five main microservices:
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/Abhi-wolf/leetcode_node_backend
-   cd leetcode_node_backend
+   git clone https://github.com/Abhi-wolf/CompileX
+   cd CompileX
    ```
 
 2. **Start all services**
@@ -204,5 +204,5 @@ Uses Docker Swarm-compatible `deploy.replicas` for horizontal scaling:
 
 ```bash
 # Deploy with Docker Swarm
-docker stack deploy -c docker-compose.yaml leetcode-backend
+docker stack deploy -c docker-compose.yaml CompileX
 ```

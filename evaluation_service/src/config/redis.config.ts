@@ -35,11 +35,17 @@ class RedisConnection {
     if (this.redis) return this.redis;
 
     this.redis = new Redis(serverConfig.REDIS_URL, redisBaseConfig);
-
+    logger.info("Redis connection established");
     return this.redis;
   }
 
-  getRedis() {
+  async getRedisOrConnect(): Promise<Redis> {
+    if (this.redis) {
+      return this.redis;
+    }
+
+    this.redis = new Redis(serverConfig.REDIS_URL, redisBaseConfig);
+
     return this.redis;
   }
 
@@ -55,7 +61,7 @@ class RedisConnection {
     }
   }
 
-   async checkRedis(): Promise<boolean> {
+  async checkRedis(): Promise<boolean> {
     if (!this.redis) {
       return false;
     }

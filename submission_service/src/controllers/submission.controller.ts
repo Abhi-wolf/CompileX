@@ -16,9 +16,12 @@ export class SubmissionController {
       language: req.body.language,
     });
 
-    const userId = (req.user?.userId) as string;
+    const userId = req.user?.userId as string;
 
-    const submission = await this.submissionService.createSubmission(req.body,userId);
+    const submission = await this.submissionService.createSubmission(
+      req.body,
+      userId,
+    );
 
     logger.info("Submission created successfully", {
       submissionId: submission.id,
@@ -31,10 +34,34 @@ export class SubmissionController {
     });
   };
 
+  createRun = async (req: AuthRequest, res: Response) => {
+    logger.info("Creating new run", {
+      problemId: req.body.problemId,
+      language: req.body.language,
+    });
+
+    const userId = req.user?.userId as string;
+
+    const run = await this.submissionService.createRun(req.body, userId);
+
+    logger.info("Run created successfully", {
+      runId: run.id,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Run created successfully",
+      data: run,
+    });
+  };
+
   getSubmissionById = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const userId = req.user?.userId;
-    logger.info("Fetching submission by ID", { submissionId: id , userId:userId});
+    logger.info("Fetching submission by ID", {
+      submissionId: id,
+      userId: userId,
+    });
 
     const submission = await this.submissionService.getSubmissionById(id);
 
@@ -49,7 +76,7 @@ export class SubmissionController {
 
   getSubmissionsByProblemId = async (req: AuthRequest, res: Response) => {
     const { problemId } = req.params;
-    const userId = (req.user?.userId) as string;
+    const userId = req.user?.userId as string;
     logger.info("Fetching submissions by problem ID", { problemId, userId });
 
     const limit = parseInt(req.query.limit as string) || 5;

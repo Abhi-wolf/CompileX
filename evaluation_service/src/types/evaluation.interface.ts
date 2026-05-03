@@ -29,6 +29,16 @@ export interface EvaluationJob {
   correlationId: string;
 }
 
+export interface RunCodeJob {
+  submissionId: string;
+  code: string;
+  language: "python" | "cpp";
+  testcases: {
+    input: string;
+  }[];
+  correlationId: string;
+}
+
 export interface EvaluationResult {
   status: string;
   output: string | undefined;

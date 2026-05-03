@@ -1,3 +1,4 @@
+import { v4 as uuidV4 } from "uuid";
 import { getProblemById } from "../apis/problem.api";
 import logger from "../config/logger.config";
 import {
@@ -12,9 +13,13 @@ import {
   InternalServerError,
   NotFoundError,
 } from "../utils/errors/app.error";
+import { CacheRepository } from "../repositories/cache.repository";
 
 export interface ISubmissionService {
-  createSubmission(submissionData: Partial<ISubmission>,userId:string): Promise<ISubmission>;
+  createSubmission(
+    submissionData: Partial<ISubmission>,
+    userId: string,
+  ): Promise<ISubmission>;
   getSubmissionById(id: string): Promise<ISubmission | null>;
   updateSubmissionStatus(
     id: string,
@@ -32,9 +37,14 @@ export interface ISubmissionService {
 
 export class SubmissionService implements ISubmissionService {
   private submissionRepository: ISubmissionRepository;
+  private cacheRepository: CacheRepository;
 
-  constructor(submissionRepository: ISubmissionRepository) {
+  constructor(
+    submissionRepository: ISubmissionRepository,
+    cacheRepository: CacheRepository,
+  ) {
     this.submissionRepository = submissionRepository;
+    this.cacheRepository = cacheRepository;
   }
 
   async createSubmission(
@@ -64,7 +74,10 @@ export class SubmissionService implements ISubmissionService {
     }
 
     //   add the submission payload to the database
-    const submission = await this.submissionRepository.create(submissionData,userId);
+    const submission = await this.submissionRepository.create(
+      submissionData,
+      userId,
+    );
 
     //   submission to redis queue for processing
     const jobId = await addSubmissionJob({
@@ -96,6 +109,73 @@ export class SubmissionService implements ISubmissionService {
     return submission;
   }
 
+  async createRun(submissionData: Partial<any>, userId: string): Promise<any> {
+    if (!submissionData.problemId) {
+      throw new BadRequestError(`Problem ID is required`);
+    }
+    if (!submissionData.code) {
+      throw new BadRequestError(`Code is required`);
+    }
+    if (!submissionData.language) {
+      throw new BadRequestError(`Language is required`);
+    }
+
+    //   add the submission payload to the database
+    // const submission = await this.submissionRepository.create(
+    //   submissionData,
+    //   userId,
+    // );
+
+    const jobData = {
+      submissionId: uuidV4(), // Will be updated by the worker
+      problem: null,
+      code: submissionData.code,
+      language: submissionData.language,
+      testcases: submissionData.testcases,
+    };
+
+    //   submission to redis queue for processing
+    const jobId = await addSubmissionJob(jobData, "RUN_CODE");
+    console.log("Job ID:", jobId);
+
+    const cacheKey = `run:${jobData.submissionId}`;
+    await this.cacheRepository.setRunCodeStatus(
+      cacheKey,
+      JSON.stringify({ status: "pending" }),
+    );
+
+    logger.info(`Run code status set in cache with key: ${cacheKey}`);
+
+    //  if job is not added to queue, throw an error
+    if (jobId) {
+      logger.info(`Run job added to queue with job ID: ${jobId}`);
+    } else {
+      logger.error(`Failed to add run job for run ID: ${jobData.submissionId}`);
+
+      // // mark the submission as failed
+      // await this.submissionRepository.updateStatus(
+      //   submission.id.toString(),
+      //   SubmissionStatus.FAILED,
+      // );
+
+      throw new InternalServerError(
+        `Failed to add run job for run ID: temp-id`,
+      );
+    }
+
+    return {
+      submissionId: jobData.submissionId,
+      problemId: submissionData.problemId,
+      code: submissionData.code,
+      language: submissionData.language,
+      testcases: submissionData.testcases,
+      userId: userId,
+      status: SubmissionStatus.PENDING,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as any;
+  }
+
   async getSubmissionById(id: string): Promise<ISubmission | null> {
     const submission = await this.submissionRepository.findById(id);
 
@@ -123,7 +203,7 @@ export class SubmissionService implements ISubmissionService {
 
   async getSubmissionsByProblemId(
     problemId: string,
-    userId:string,
+    userId: string,
     limit: number = 5,
     page: number = 1,
   ): Promise<{ submissions: ISubmission[]; total: number; page: number }> {

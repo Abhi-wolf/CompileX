@@ -13,6 +13,22 @@ export const createSubmissionSchema = z.object({
   }),
 });
 
+export const runCodeSchema = z.object({
+  problemId: z.string().min(1, "Problem ID is required"),
+  code: z.string().min(1, "Code is required"),
+  language: z.nativeEnum(SubmissionLanguage, {
+    errorMap: () => ({ message: "Language must be either 'cpp' or 'python'" }),
+  }),
+  testcases: z.array(
+    z.object({
+      input: z
+        .string()
+        .min(1, "Input is required")
+        .max(5000, "Input cannot exceed 5000 characters"),
+    }),
+  ),
+});
+
 // Schema for updating submission status
 export const updateSubmissionStatusSchema = z.object({
   status: z.nativeEnum(SubmissionStatus, {

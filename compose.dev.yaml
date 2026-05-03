@@ -172,8 +172,8 @@ services:
     build:
       context: ./evaluation_service
       dockerfile: Dockerfile.dev
-    # ports:
-    #   - 3030:3030
+    ports:
+      - 3030:3030
     # deploy:
     #   replicas: 3
     # ports:
@@ -218,7 +218,7 @@ services:
       - DB_PASSWORD=postgres
       - JWT_ACCESS_SECRET=ldfjsdfkEKFHWK#&!#*81273
       - JWT_REFRESH_SECRET=ldfjsdfkEKFHWK#&!#*81273
-      - JWT_ACCESS_EXPIRES_IN=1h
+      - JWT_ACCESS_EXPIRES_IN=24h
       - JWT_REFRESH_EXPIRES_IN=7d
       - PORT=3002
       - NODE_ENV=development
