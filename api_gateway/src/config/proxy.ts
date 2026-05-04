@@ -31,7 +31,7 @@ export const createProxy = (serviceDetail: {
         );
         return instance;
       } catch (error) {
-        console.error("Error getting next instance:", error);
+        // console.error("Error getting next instance:", error);
         throw new ServiceUnavailableError(
           "Service temporarily unavailable. Please try again later.",
         );
@@ -83,7 +83,7 @@ export const createProxy = (serviceDetail: {
           proxyReq.setHeader("x-api-gateway-signature", signature);
           proxyReq.setHeader("x-api-gateway-timestamp", timestamp.toString());
 
-          console.log("Signature:", signature, "payload:", payload);
+          // console.log("Signature:", signature, "payload:", payload);
 
           fixRequestBody(proxyReq, req);
         } catch (error) {

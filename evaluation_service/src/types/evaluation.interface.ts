@@ -25,18 +25,9 @@ export interface EvaluationJob {
   submissionId: string;
   code: string;
   language: "python" | "cpp";
-  problem: Problem;
+  problemId: string;
   correlationId: string;
-}
-
-export interface RunCodeJob {
-  submissionId: string;
-  code: string;
-  language: "python" | "cpp";
-  testcases: {
-    input: string;
-  }[];
-  correlationId: string;
+  testcases: TestCase[];
 }
 
 export interface EvaluationResult {

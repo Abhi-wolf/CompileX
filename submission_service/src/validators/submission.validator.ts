@@ -19,14 +19,17 @@ export const runCodeSchema = z.object({
   language: z.nativeEnum(SubmissionLanguage, {
     errorMap: () => ({ message: "Language must be either 'cpp' or 'python'" }),
   }),
-  testcases: z.array(
-    z.object({
-      input: z
-        .string()
-        .min(1, "Input is required")
-        .max(5000, "Input cannot exceed 5000 characters"),
-    }),
-  ),
+  testcases: z
+    .array(
+      z.object({
+        input: z
+          .string()
+          .min(1, "Input is required")
+          .max(5000, "Input cannot exceed 5000 characters"),
+      }),
+    )
+    .min(1, "At least one test case is required")
+    .max(3, "Maximum 3 test cases allowed"),
 });
 
 // Schema for updating submission status

@@ -161,3 +161,23 @@ export class ServiceUnavailableError implements AppError {
         this.name = "ServiceUnavailableError";
     }
 }
+
+
+
+/**
+ * Represents a Queue Overload error (HTTP 503).
+ * This error is typically used to indicate that the queue is overloaded.
+ * 
+ * @class QueueOverloadError
+ * @implements {AppError}
+ */
+export class QueueOverloadError implements AppError {
+    statusCode: number;
+    message: string;
+    name: string;
+    constructor(message: string) {
+        this.statusCode = 503;
+        this.message = message;
+        this.name = "QueueOverloadError";
+    }
+}

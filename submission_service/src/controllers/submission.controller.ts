@@ -42,16 +42,12 @@ export class SubmissionController {
 
     const userId = req.user?.userId as string;
 
-    const run = await this.submissionService.createRun(req.body, userId);
-
-    logger.info("Run created successfully", {
-      runId: run.id,
-    });
+    const runData = await this.submissionService.createRun(req.body, userId);
 
     res.status(201).json({
       success: true,
       message: "Run created successfully",
-      data: run,
+      data: runData,
     });
   };
 
@@ -141,6 +137,21 @@ export class SubmissionController {
       success: true,
       message: "Submission status updated successfully",
       data: submission,
+    });
+  };
+
+  getRunCodeStatus = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    logger.info("Getting run code status", { runId: id });
+
+    const result = await this.submissionService.getRunCodeStatus(id);
+
+    logger.info("Run code status fetched successfully", { runId: id });
+
+    res.status(200).json({
+      success: true,
+      message: "Run code status fetched successfully",
+      data: result,
     });
   };
 }

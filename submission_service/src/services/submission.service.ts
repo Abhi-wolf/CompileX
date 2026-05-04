@@ -1,4 +1,3 @@
-import { v4 as uuidV4 } from "uuid";
 import { getProblemById } from "../apis/problem.api";
 import logger from "../config/logger.config";
 import {
@@ -9,33 +8,15 @@ import {
 import { addSubmissionJob } from "../producers/submission.producer";
 import { ISubmissionRepository } from "../repositories/submission.repository";
 import {
-  BadRequestError,
   InternalServerError,
   NotFoundError,
+  QueueOverloadError,
 } from "../utils/errors/app.error";
 import { CacheRepository } from "../repositories/cache.repository";
-
-export interface ISubmissionService {
-  createSubmission(
-    submissionData: Partial<ISubmission>,
-    userId: string,
-  ): Promise<ISubmission>;
-  getSubmissionById(id: string): Promise<ISubmission | null>;
-  updateSubmissionStatus(
-    id: string,
-    status: SubmissionStatus,
-    submissionData?: ISubmissionData,
-  ): Promise<ISubmission | null>;
-  getSubmissionsByProblemId(
-    problemId: string,
-    userId: string,
-    limit?: number,
-    page?: number,
-  ): Promise<{ submissions: ISubmission[]; total: number; page: number }>;
-  deleteSubmissionById(id: string): Promise<boolean>;
-}
-
-export class SubmissionService implements ISubmissionService {
+import { IRunCodeSubmission, ISubmissionJob } from "../types/submission.types";
+import { serverConfig } from "../config";
+import { generateHMACSignature } from "../utils/generateHMACSignature";
+export class SubmissionService {
   private submissionRepository: ISubmissionRepository;
   private cacheRepository: CacheRepository;
 
@@ -51,19 +32,8 @@ export class SubmissionService implements ISubmissionService {
     submissionData: Partial<ISubmission>,
     userId: string,
   ): Promise<ISubmission> {
-    // check if the problem exists
-    if (!submissionData.problemId) {
-      throw new BadRequestError(`Problem ID is required`);
-    }
-    if (!submissionData.code) {
-      throw new BadRequestError(`Code is required`);
-    }
-    if (!submissionData.language) {
-      throw new BadRequestError(`Language is required`);
-    }
-
     // get problem details from problem service
-    const problem = await getProblemById(submissionData.problemId);
+    const problem = await getProblemById(submissionData.problemId!);
 
     logger.info(`fetched problem from problem service with id ${problem?.id}`);
 
@@ -79,28 +49,30 @@ export class SubmissionService implements ISubmissionService {
       userId,
     );
 
-    //   submission to redis queue for processing
-    const jobId = await addSubmissionJob({
+    const jobData: ISubmissionJob = {
       submissionId: submission.id.toString(),
-      problem,
-      code: submissionData.code,
-      language: submissionData.language,
-    });
+      problemId: submissionData.problemId!,
+      code: submissionData.code!,
+      language: submissionData.language!,
+      testcases: problem.testcases,
+    };
 
-    //  if job is not added to queue, throw an error
-    if (jobId) {
-      logger.info(`Submission job added to queue with job ID: ${jobId}`);
-    } else {
-      logger.error(
-        `Failed to add submission job for submission ID: ${submission.id}`,
-      );
+    //   submission to redis queue for processing
+    let jobId: string | null = null;
 
+    try {
+      jobId = await addSubmissionJob(jobData, serverConfig.EVALUATION_JOB_NAME);
+      logger.info(`Added submission job with ID: ${jobId}`);
+    } catch (error) {
       // mark the submission as failed
       await this.submissionRepository.updateStatus(
         submission.id.toString(),
         SubmissionStatus.FAILED,
       );
 
+      if (error instanceof QueueOverloadError) {
+        throw error;
+      }
       throw new InternalServerError(
         `Failed to add submission job for submission ID: ${submission.id}`,
       );
@@ -109,58 +81,65 @@ export class SubmissionService implements ISubmissionService {
     return submission;
   }
 
-  async createRun(submissionData: Partial<any>, userId: string): Promise<any> {
-    if (!submissionData.problemId) {
-      throw new BadRequestError(`Problem ID is required`);
-    }
-    if (!submissionData.code) {
-      throw new BadRequestError(`Code is required`);
-    }
-    if (!submissionData.language) {
-      throw new BadRequestError(`Language is required`);
-    }
-
-    //   add the submission payload to the database
-    // const submission = await this.submissionRepository.create(
-    //   submissionData,
-    //   userId,
-    // );
-
-    const jobData = {
-      submissionId: uuidV4(), // Will be updated by the worker
-      problem: null,
+  async createRun(
+    submissionData: IRunCodeSubmission,
+    userId: string,
+  ): Promise<Partial<IRunCodeSubmission>> {
+    const hashData = {
       code: submissionData.code,
       language: submissionData.language,
       testcases: submissionData.testcases,
     };
 
-    //   submission to redis queue for processing
-    const jobId = await addSubmissionJob(jobData, "RUN_CODE");
-    console.log("Job ID:", jobId);
-
-    const cacheKey = `run:${jobData.submissionId}`;
-    await this.cacheRepository.setRunCodeStatus(
-      cacheKey,
-      JSON.stringify({ status: "pending" }),
+    // generate hash for the run code request -- used as cache key to prevent duplicate runs
+    const hash = generateHMACSignature(
+      JSON.stringify(hashData),
+      "submission-service-run-code",
     );
 
-    logger.info(`Run code status set in cache with key: ${cacheKey}`);
+    logger.info(`Hash generated for run code: ${hash}`);
 
-    //  if job is not added to queue, throw an error
-    if (jobId) {
-      logger.info(`Run job added to queue with job ID: ${jobId}`);
-    } else {
-      logger.error(`Failed to add run job for run ID: ${jobData.submissionId}`);
+    const cacheKey = `run:${hash}`;
 
-      // // mark the submission as failed
-      // await this.submissionRepository.updateStatus(
-      //   submission.id.toString(),
-      //   SubmissionStatus.FAILED,
-      // );
+    const cachedRunCodeStatus =
+      await this.cacheRepository.getRunCodeStatus(cacheKey);
 
-      throw new InternalServerError(
-        `Failed to add run job for run ID: temp-id`,
+    if (cachedRunCodeStatus) {
+      return {
+        submissionId: hash,
+        problemId: submissionData.problemId,
+        code: submissionData.code,
+        language: submissionData.language,
+        testcases: submissionData.testcases,
+      };
+    }
+
+    const jobData = {
+      submissionId: hash,
+      problemId: submissionData.problemId,
+      code: submissionData.code!,
+      language: submissionData.language!,
+      testcases: submissionData.testcases,
+    };
+
+    let jobId: string | null = null;
+
+    try {
+      jobId = await addSubmissionJob(jobData, "RUN_CODE");
+
+      await this.cacheRepository.setRunCodeStatus(
+        cacheKey,
+        JSON.stringify({ status: "added_to_queue" }),
       );
+
+      logger.info(
+        `Run code status set in cache with key: ${cacheKey} and job ID: ${jobId}`,
+      );
+    } catch (error) {
+      if (error instanceof QueueOverloadError) {
+        throw error;
+      }
+      throw new InternalServerError("Failed to add run job");
     }
 
     return {
@@ -172,8 +151,7 @@ export class SubmissionService implements ISubmissionService {
       userId: userId,
       status: SubmissionStatus.PENDING,
       createdAt: new Date(),
-      updatedAt: new Date(),
-    } as any;
+    };
   }
 
   async getSubmissionById(id: string): Promise<ISubmission | null> {
@@ -233,5 +211,15 @@ export class SubmissionService implements ISubmissionService {
     }
 
     return this.submissionRepository.deleteById(id);
+  }
+
+  async getRunCodeStatus(id: string) {
+    const result = await this.cacheRepository.getRunCodeStatus(`run:${id}`);
+
+    if (!result) {
+      throw new NotFoundError("Run code status not found");
+    }
+
+    return result;
   }
 }

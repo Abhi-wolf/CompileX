@@ -1,22 +1,28 @@
-import { IProblemDetails } from "../apis/problem.api";
-import { serverConfig } from "../config";
 import logger from "../config/logger.config";
-import { SubmissionLanguage } from "../models/submission.model";
 import { submissionQueue } from "../queues/submission.queue";
+import { ISubmissionJob } from "../types/submission.types";
+import {
+  InternalServerError,
+  QueueOverloadError,
+} from "../utils/errors/app.error";
 import { getCorrelationId } from "../utils/helpers/request.helpers";
-
-export interface ISubmissionJob {
-  submissionId: string;
-  problem: IProblemDetails | null;
-  code: string;
-  language: SubmissionLanguage;
-}
 
 export async function addSubmissionJob(
   data: ISubmissionJob,
-  name?: string,
+  name: string,
 ): Promise<string | null> {
   try {
+    const waitingJobs = await submissionQueue.getWaiting();
+
+    if (waitingJobs.length >= 400) {
+      logger.warn(
+        `Queue is overloaded with ${waitingJobs.length} waiting jobs`,
+      );
+      throw new QueueOverloadError(
+        "System is overloaded. Please try again later.",
+      );
+    }
+
     const correlationId = getCorrelationId();
 
     const jobData = {
@@ -24,12 +30,10 @@ export async function addSubmissionJob(
       correlationId: correlationId,
     };
 
-    const jobName = name ? name : serverConfig.EVALUATION_JOB_NAME;
-
-    const job = await submissionQueue.add(jobName, jobData);
+    const job = await submissionQueue.add(name, jobData);
 
     logger.info(
-      `Added submission job with ID: ${job.id} for submission ID: ${data.submissionId}`,
+      `Added ${name} job with ID: ${job.id} for submission ID: ${data.submissionId}`,
     );
 
     return job.id || null;
@@ -38,6 +42,8 @@ export async function addSubmissionJob(
       `Failed to add submission job for submission ID: ${data.submissionId}, error:`,
       error,
     );
-    return null;
+    if (error instanceof QueueOverloadError) throw error;
+
+    throw new InternalServerError("Queue push failed");
   }
 }

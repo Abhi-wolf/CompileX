@@ -14,6 +14,17 @@ export class CacheRepository {
     return redis;
   }
 
+  // async getRunCodeStatus(key: string): Promise<RunCodeStatus[] | null> {
+  async getRunCodeStatus(key: string): Promise<any> {
+    console.log("Getting run code status from cache for key: ", key);
+    const redis = await this.getRedis();
+    console.log("Redis connection established");
+    const result = await redis.get(key);
+    console.log("Result from cache: ", result);
+
+    return result ? JSON.parse(result) : null;
+  }
+
   async setRunCodeStatus(key: string, value: string): Promise<void> {
     const redis = await this.getRedis();
 

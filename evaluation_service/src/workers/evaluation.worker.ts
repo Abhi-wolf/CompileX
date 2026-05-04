@@ -6,7 +6,6 @@ import {
   TestCase,
   EvaluationStatus,
   ISubmissionData,
-  RunCodeJob,
 } from "../types/evaluation.interface";
 import { runCode } from "../utils/containers/codeRunner.util";
 import { LANGUAGE_CONFIG } from "../config/language.config";
@@ -84,51 +83,10 @@ async function setupEvaluationWorker() {
       return asyncLocalStorage.run(
         { correlationId: job.data.correlationId },
         async () => {
-          // Only process evaluation jobs in this worker
+          // submission job
           if (job.name === serverConfig.EVALUATION_JOB_NAME) {
             logger.info(`Processing job ${job.id}`);
             const data: EvaluationJob = job.data;
-
-            try {
-              const testCasesRunnerPormises = data.problem.testcases.map(
-                (testCase) => {
-                  return runCode({
-                    code: data.code,
-                    language: data.language,
-                    timeout: LANGUAGE_CONFIG[data.language].timeout,
-                    imageName: LANGUAGE_CONFIG[data.language].imageName,
-                    input: testCase.input,
-                  });
-                },
-              );
-
-              const testCasesRunnerResults: EvaluationResult[] =
-                await Promise.all(testCasesRunnerPormises);
-
-              const output = matchTestCasesWithResults(
-                data.problem.testcases,
-                testCasesRunnerResults,
-              );
-
-              // await updateSubmission(
-              //   data.submissionId,
-              //   "completed",
-              //   output || {},
-              // );
-
-              await addStatusUpdateJob({
-                submissionId: data.submissionId,
-                status: "completed",
-                output: output || {},
-              });
-            } catch (error) {
-              logger.error(`Error processing job ${job.id}:`, error);
-              return;
-            }
-          } else if (job.name === "RUN_CODE") {
-            
-            logger.info(`Processing RUN_CODE job ${job.id}`);
-            const data: RunCodeJob = job.data;
 
             try {
               const testCasesRunnerPormises = data.testcases.map((testCase) => {
@@ -144,34 +102,76 @@ async function setupEvaluationWorker() {
               const testCasesRunnerResults: EvaluationResult[] =
                 await Promise.all(testCasesRunnerPormises);
 
-              console.log("testCasesRunnerResults = ", testCasesRunnerResults);
+              const output = matchTestCasesWithResults(
+                data.testcases,
+                testCasesRunnerResults,
+              );
 
-              const dataToStore = {
+              await addStatusUpdateJob({
+                submissionId: data.submissionId,
+                status: "completed",
+                output: output || {},
+              });
+
+            } catch (error) {
+              logger.error(`Error processing job ${job.id}:`, error);
+              // throw error to retry the job
+              throw new Error("Failed to process submission job");
+            }
+          } 
+          // Run code job
+          else if (job.name === "RUN_CODE") {
+            logger.info(`Processing RUN_CODE job ${job.id}`);
+            const data: EvaluationJob = job.data;
+
+            try {
+              const testCasesRunnerPormises = data.testcases.map((testCase) => {
+                return runCode({
+                  code: data.code,
+                  language: data.language,
+                  timeout: LANGUAGE_CONFIG[data.language].timeout,
+                  imageName: LANGUAGE_CONFIG[data.language].imageName,
+                  input: testCase.input,
+                });
+              });
+
+              const testCasesRunnerResults: EvaluationResult[] =
+                await Promise.all(testCasesRunnerPormises);
+
+              // console.log("testCasesRunnerResults = ", testCasesRunnerResults);
+
+              const dataToCache = {
                 status: "completed",
                 results: testCasesRunnerResults,
               };
 
               const cacheKey = `run:${data.submissionId}`;
-              logger.info(`Setting run code status in cache with key: ${cacheKey}`);
-              
+              logger.info(
+                `Setting run code status in cache with key: ${cacheKey}`,
+              );
+
               await evaluationService.setRunCodeStatus(
                 cacheKey,
-                JSON.stringify(dataToStore),
+                JSON.stringify(dataToCache),
               );
             } catch (error) {
+              // does not need to throw error user can retry
               logger.error(`Error processing job ${job.id}:`, error);
 
               const cacheKey = `run:${data.submissionId}`;
-              logger.info(`Setting run code status in cache with key: ${cacheKey}`);
 
-              const dataToStore = {
+              logger.info(
+                `Setting run code status as failed in cache with key: ${cacheKey}`,
+              );
+
+              const dataToCache = {
                 status: "failed",
                 error: (error as Error).message,
               };
-              
+
               await evaluationService.setRunCodeStatus(
-                job.id!,
-                JSON.stringify(dataToStore),
+                cacheKey,
+                JSON.stringify(dataToCache),
               );
               return;
             }

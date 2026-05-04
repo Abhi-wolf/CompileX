@@ -14,9 +14,6 @@ const submissionRouter = express.Router();
 // Get submission controller instance from factory
 const submissionController = SubmissionFactory.getSubmissionController();
 
-
-
-
 // POST /submissions - Create a new submission
 submissionRouter.post(
   "/",
@@ -25,7 +22,6 @@ submissionRouter.post(
   submissionController.createSubmission,
 );
 
-
 submissionRouter.post(
   "/run",
   authorize,
@@ -33,8 +29,11 @@ submissionRouter.post(
   submissionController.createRun,
 );
 
-// GET /submissions/:id - Get submission by ID
-submissionRouter.get("/:id", authorize, submissionController.getSubmissionById);
+submissionRouter.get(
+  "/run/:id",
+  authorize,
+  submissionController.getRunCodeStatus,
+);
 
 // GET /submissions/problem/:problemId - Get all submissions for a problem
 submissionRouter.get(
@@ -43,6 +42,9 @@ submissionRouter.get(
   validateQueryParams(submissionQuerySchema),
   submissionController.getSubmissionsByProblemId,
 );
+
+// GET /submissions/:id - Get submission by ID
+submissionRouter.get("/:id", authorize, submissionController.getSubmissionById);
 
 // DELETE /submissions/:id - Delete a submission
 // submissionRouter.delete(
