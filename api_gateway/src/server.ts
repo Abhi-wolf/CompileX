@@ -11,6 +11,10 @@ import morganMiddleware from "./middlewares/morgan.middleware";
 import { createProxy } from "./config/proxy";
 import { refreshAllServices } from "./utils/refresh.services";
 import { startCacheRefresher } from "./utils/refresh.cache";
+import { authorize } from "./middlewares/authorization.middleware";
+import helmet from "helmet";
+import cors from "cors";
+
 const app = express();
 
 // app.use(express.json());
@@ -24,20 +28,31 @@ app.use(morganMiddleware);
 
 app.use(express.json());
 
+app.use(helmet());
+
+app.use(
+  cors({
+    origin: [serverConfig.FRONTEND_URL],
+  }),
+);
+
 app.use("/api/v1", v1Router);
 
 app.use(
   "/api/auth",
+  authorize,
   createProxy({ name: "auth", serviceName: "auth-service" }),
 );
 
 app.use(
   "/api/problems",
+  authorize,
   createProxy({ name: "problems", serviceName: "problem-service" }),
 );
 
 app.use(
   "/api/submissions",
+  authorize,
   createProxy({ name: "submissions", serviceName: "submission-service" }),
 );
 

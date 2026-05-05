@@ -12,3 +12,10 @@ export const KNOWN_SERVICES = {
     serviceName: "problem-service",
   },
 };
+
+
+export const publicAPIs = [
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/refreshToken",
+];

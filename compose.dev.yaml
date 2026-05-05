@@ -77,6 +77,7 @@ services:
       - REGISTRY_SERVICE_URL=http://registry-service:3001/api/v1
       - REGISTRY_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
       - API_GATEWAY_HMAC_SHARED_SECRET=3049sKKJDIWEO2983023909234
+      - FRONTEND_URL=http://localhost:5173
     volumes:
       - ./api_gateway/src:/leetcode-server/api-gateway/src
       - ./api_gateway/package.json:/leetcode-server/api-gateway/package.json
@@ -84,6 +85,8 @@ services:
       - /leetcode-server/api-gateway/node_modules
     networks:
       - backend
+    depends_on:
+      - registry-service
 
   registry-service:
     build:
@@ -126,6 +129,8 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
+      registry-service:
+        condition: service_started
     networks:
       - backend
 
@@ -165,6 +170,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      registry-service:
+        condition: service_started
     networks:
       - backend
 
@@ -231,6 +238,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      registry-service:
+        condition: service_started
     volumes:
       - ./auth_service/src:/leetcode-server/auth-service/src
       - ./auth_service/package.json:/leetcode-server/auth-service/package.json

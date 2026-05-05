@@ -47,8 +47,8 @@ const refreshServices = async (serviceName: string) => {
 
     return res.data;
   } catch (error: any) {
-    console.error("refreshServices = ", error);
-    logger.error(`Failed to refresh service: ${serviceName}`);
+    // console.error("refreshServices = ", error);
+    logger.error(`Failed to refresh service: ${serviceName} ${error.message}`);
   }
 };
 

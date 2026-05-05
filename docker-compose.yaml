@@ -98,8 +98,11 @@ services:
       - REGISTRY_SERVICE_URL=http://registry-service:3001/api/v1
       - REGISTRY_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
       - API_GATEWAY_HMAC_SHARED_SECRET=3049sKKJDIWEO2983023909234
+      - FRONTEND_URL=http://localhost:5173
     networks:
       - backend
+    depends_on:
+      - registry-service
 
   registry-service:
     build:
@@ -135,9 +138,12 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
+      registry-service:
+        condition: service_started
     networks:
       - backend
       - mongo_db_network
+
 
   submission-service:
     build:
@@ -169,6 +175,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      registry-service:
+        condition: service_started
     networks:
       - backend
       - mongo_db_network
@@ -203,6 +211,7 @@ services:
       - execution
       - redis_network
 
+
   auth-service:
     build:
       context: ./auth_service
@@ -231,6 +240,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      registry-service:
+        condition: service_started
     networks:
       - backend
       - postgres_db_network

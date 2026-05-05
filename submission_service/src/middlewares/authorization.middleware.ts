@@ -21,9 +21,6 @@ export const authorize = (
       token,
       serverConfig.JWT_ACCESS_SECRET,
     ) as DecodedToken;
-    req.user = decoded;
-
-    // console.log("decoded", decoded);
 
     req.user = decoded;
 
