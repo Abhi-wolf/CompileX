@@ -8,10 +8,13 @@ import {
   updateUserSchema,
 } from "../../validators/auth.validator";
 import { authorize } from "../../middlewares/authorization.middleware";
+import { verifyHAMCSignature } from "../../middlewares/verifyHMACSignature";
 
 const authController = AuthFactory.getAuthController();
 
 const authRouter = express.Router();
+
+authRouter.use(verifyHAMCSignature);
 
 authRouter.post(
   "/register",

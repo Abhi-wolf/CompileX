@@ -1,55 +1,20 @@
-import axios from "axios";
-import { serverConfig } from "../config";
 import logger from "../config/logger.config";
 import { KNOWN_SERVICES } from "../config/servicesInfos";
 import { InstanceFactory } from "../factories/instance.factory";
-import { generateHMACSignature } from "./generateHMACSignature";
+import { getServiceInstances } from "../infra/consul/getServiceInstances";
 
-const CACHE_REFRESH_INTERVAL_MS = 90000;
+const CACHE_REFRESH_INTERVAL_MS = 60000;
 
 const instanceService = InstanceFactory.getInstanceService();
 
 const refreshServices = async (serviceName: string) => {
   try {
-    const timestamp = Date.now();
-    const nonce = crypto.randomUUID();
+    const instances = await getServiceInstances(serviceName);
 
-    const data={
-      timestamp,
-      nonce,
-      serviceName: serverConfig.SERVICE_NAME,
+    if (instances && instances.length > 0) {
+      instanceService.addServiceInstanceToCache(serviceName, instances);
     }
-
-    const signature = generateHMACSignature(
-      JSON.stringify(data),
-      serverConfig.REGISTRY_HMAC_SHARED_SECRET,
-    );
-
-    // console.log("Data=", data);
-    // console.log("Signature=", signature);
-
-    const res = await axios.post(
-      `${serverConfig.REGISTRY_SERVICE_URL}/service-registry/discover/${serviceName}`,
-      data,
-      {
-        timeout: 5000,
-        headers: {
-          "x-registry-signature": signature,
-        },
-      },
-    );
-
-    logger.info(`Refreshed service: ${serviceName}`);
-
-    if (res.data.success) {
-      instanceService.addServiceInstanceToCache(serviceName, res.data.data);
-    }
-
-    return res.data;
-  } catch (error: any) {
-    // console.error("refreshServices = ", error);
-    logger.error(`Failed to refresh service: ${serviceName} ${error.message}`);
-  }
+  } catch (error) {}
 };
 
 export const refreshAllServices = async () => {
@@ -62,4 +27,5 @@ export const refreshAllServices = async () => {
 
 setInterval(() => {
   refreshAllServices();
+  logger.info('Initiallly refreshed all services')
 }, CACHE_REFRESH_INTERVAL_MS);

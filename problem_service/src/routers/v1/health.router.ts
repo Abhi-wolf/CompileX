@@ -29,6 +29,21 @@ healthRouter.get("/", async (req: Request, res: Response) => {
   });
 });
 
+
+healthRouter.get("/consul", async (req: Request, res: Response) => {
+  const checks = {
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    uptime: formatUptime(process.uptime()),
+    service: serverConfig.SERVICE_NAME || "auth-service",
+  };
+
+  res.status(200).json({
+    ...checks,
+    success: true,
+  });
+});
+
 export default healthRouter;
 
 const formatUptime = (seconds: number): string => {

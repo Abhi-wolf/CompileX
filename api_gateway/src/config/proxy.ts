@@ -11,9 +11,21 @@ import { serverConfig } from ".";
 const instanceService = InstanceFactory.getInstanceService();
 const apiGatewayHmacSharedSecret = serverConfig.API_GATEWAY_HMAC_SHARED_SECRET;
 
-const getNextInstance = (serviceName: string) => {
+const getNextInstance = async (serviceName: string) => {
+  // if (serviceName === "auth-service") {
+  // const instances = await getServiceInstances(serviceName);
+
+  // console.log(`got ${serviceName} instances = `, instances);
+
+  // if (!instances || instances.length === 0) {
+  //   throw new Error("No instances of auth-service found");
+  // }
+
+  // return `http://${instances[0].address}:${instances[0].port}`;
+  // } else {
+  // }
   const nextInstance = instanceService.getNextRoundRobinInstance(serviceName);
-  return `http://${nextInstance.host}:${nextInstance.port}`;
+  return `http://${nextInstance.address}:${nextInstance.port}`;
 };
 
 export const createProxy = (serviceDetail: {
@@ -23,9 +35,9 @@ export const createProxy = (serviceDetail: {
   return createProxyMiddleware({
     changeOrigin: true,
 
-    router: () => {
+    router: async () => {
       try {
-        const instance = getNextInstance(serviceDetail.serviceName);
+        const instance = await getNextInstance(serviceDetail.serviceName);
         logger.debug(
           `Redirecting request to ${instance} instance of ${serviceDetail.serviceName}`,
         );
@@ -37,13 +49,6 @@ export const createProxy = (serviceDetail: {
         );
       }
     },
-
-    // pathRewrite: (path) => {
-    //   return path.replace(
-    //     new RegExp(`^/api/${serviceDetail.name}`),
-    //     `/api/v1/${serviceDetail.name}`,
-    //   );
-    // },
 
     pathRewrite: { "^/": `/api/v1/${serviceDetail.name}/` },
 
@@ -82,8 +87,6 @@ export const createProxy = (serviceDetail: {
 
           proxyReq.setHeader("x-api-gateway-signature", signature);
           proxyReq.setHeader("x-api-gateway-timestamp", timestamp.toString());
-
-          // console.log("Signature:", signature, "payload:", payload);
 
           fixRequestBody(proxyReq, req);
         } catch (error) {

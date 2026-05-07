@@ -7,18 +7,11 @@ import {
 } from "./middlewares/error.middleware";
 import logger from "./config/logger.config";
 import { attachCorrelationIdMiddleware } from "./middlewares/correlation.middleware";
-// import morganMiddleware from "./middlewares/morgan.middleware";
 import { db } from "./config/db";
-import {
-  registerServiceInstance,
-  startHeartbeat,
-} from "./api/register-service-instance";
-
-import os from "os";
 import morganMiddleware from "./middlewares/morgan.middleware";
-import { verifyHAMCSignature } from "./middlewares/verifyHMACSignature";
+import { serverInstance } from "./config/serverInstance.config";
+import { deregisterServiceInstance, registerServiceInstance } from "./infra/consul/consul.register";
 
-const systemHost = os.hostname();
 
 const app = express();
 
@@ -30,7 +23,6 @@ app.use(attachCorrelationIdMiddleware);
 app.use(morganMiddleware);
 
 app.use(express.json());
-app.use(verifyHAMCSignature);
 
 app.use("/api/v1", v1Router);
 
@@ -57,12 +49,6 @@ async function initializeConnection() {
   }
 }
 
-const serviceInstance = {
-  serviceName: "auth-service",
-  instanceId: `auth-service-${systemHost}`,
-  host: systemHost,
-  port: serverConfig.PORT,
-};
 
 async function startServer() {
   try {
@@ -70,8 +56,7 @@ async function startServer() {
 
     const server = app.listen(serverConfig.PORT, async () => {
       logger.info(`Auth server is running on PORT ${serverConfig.PORT}`);
-      await registerServiceInstance(serviceInstance);
-      startHeartbeat(serviceInstance);
+      await registerServiceInstance(serverInstance);
     });
 
     const gracefulShutdown = async (signal: string) => {
@@ -82,6 +67,7 @@ async function startServer() {
 
         try {
           await db.shutdown();
+          await deregisterServiceInstance(serverInstance.id)
           logger.info("All connections closed successfully");
           process.exit(0);
         } catch (error) {

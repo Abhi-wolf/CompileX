@@ -8,11 +8,14 @@ import {
   submissionQuerySchema,
 } from "../../validators/submission.validator";
 import { authorize } from "../../middlewares/authorization.middleware";
+import { verifyHAMCSignature } from "../../middlewares/verifyHMACSignature";
 
 const submissionRouter = express.Router();
 
 // Get submission controller instance from factory
 const submissionController = SubmissionFactory.getSubmissionController();
+
+submissionRouter.use(verifyHAMCSignature);
 
 // POST /submissions - Create a new submission
 submissionRouter.post(

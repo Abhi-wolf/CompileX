@@ -48,6 +48,14 @@ services:
     networks:
       - postgres_db_network
     
+  consul:
+    image: hashicorp/consul
+    command: "agent -dev -client=0.0.0.0"
+    ports:
+      - "8500:8500"
+    networks:
+      - backend
+
   migrate:
     build:
       context: ./auth_service
@@ -102,22 +110,22 @@ services:
     networks:
       - backend
     depends_on:
-      - registry-service
+      - consul
 
-  registry-service:
-    build:
-      context: ./registry_service
-      dockerfile: Dockerfile.dev
-    # ports:
-    #   - 3001:3001
-    restart: unless-stopped
-    environment:
-      - PORT=3001
-      - NODE_ENV=production
-      - SERVICE_NAME=registry-service
-      - REGISTRY_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
-    networks:
-      - backend
+  # registry-service:
+  #   build:
+  #     context: ./registry_service
+  #     dockerfile: Dockerfile.dev
+  #   # ports:
+  #   #   - 3001:3001
+  #   restart: unless-stopped
+  #   environment:
+  #     - PORT=3001
+  #     - NODE_ENV=production
+  #     - SERVICE_NAME=registry-service
+  #     - REGISTRY_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
+  #   networks:
+  #     - backend
 
 
   problem-service:
@@ -138,7 +146,7 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-      registry-service:
+      consul:
         condition: service_started
     networks:
       - backend
@@ -175,7 +183,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      registry-service:
+      consul:
         condition: service_started
     networks:
       - backend
@@ -240,7 +248,7 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-      registry-service:
+      consul:
         condition: service_started
     networks:
       - backend

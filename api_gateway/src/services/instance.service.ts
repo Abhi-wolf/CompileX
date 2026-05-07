@@ -3,14 +3,13 @@ import { InstanceRepository } from "../repositories/instance.repository";
 import { BadRequestError } from "../utils/errors/app.error";
 
 interface ServiceInstance {
-  serviceName: string;
   instanceId: string;
-  host: string;
+  address: string;
   port: number;
 }
 
 export class InstanceService {
-  private readonly HEARTBEAT_TIMEOUT = 180_000; // 3 minutes
+  private readonly HEARTBEAT_TIMEOUT = 120_000; // 2 minutes
   constructor(private serviceInstanceRepository: InstanceRepository) {}
 
   private verifyServiceSignature() {
@@ -81,7 +80,7 @@ export class InstanceService {
       const res = this.serviceInstanceRepository.addServiceInstanceToCache(
         serviceName,
         instance.instanceId,
-        instance.host,
+        instance.address,
         instance.port,
         lastHeartbeat,
       );

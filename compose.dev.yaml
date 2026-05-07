@@ -45,6 +45,44 @@ services:
     networks:
       - backend
 
+  # consul:
+  #   image: hashicorp/consul
+  #   command: agent -server -bootstrap-expect=3 -node=consul-1 -bind=0.0.0.0 -client=0.0.0.0
+  #   ports:
+  #     - "8500:8500"
+  #   networks:
+  #     - backend
+
+  consul-client:
+    image: hashicorp/consul
+    command: agent -retry-join=consul-server-1 -client=0.0.0.0
+    depends_on:
+      - consul-server-1
+    ports:
+      - 8500:8500
+    networks:
+      - backend   
+  
+  consul-server-1:
+    image: hashicorp/consul
+    command: agent -server -bootstrap-expect=3 -node=consul-1 -bind=0.0.0.0 -client=0.0.0.0
+    networks:
+      - backend 
+
+  consul-server-2:
+    image: hashicorp/consul
+    command: agent -server -bootstrap-expect=3 -retry-join=consul-server-1 -node=consul-2
+    networks:
+      - backend 
+
+  consul-server-3:
+    image: hashicorp/consul
+    command: agent -server -bootstrap-expect=3 -retry-join=consul-server-1 -node=consul-3 
+    networks:
+      - backend 
+
+
+      
   migrate:
     build:
       context: ./auth_service
@@ -63,6 +101,8 @@ services:
     restart: on-failure
     networks:
       - backend
+  
+
 
   api-gateway:
     build:
@@ -86,26 +126,9 @@ services:
     networks:
       - backend
     depends_on:
-      - registry-service
+      consul-client:
+        condition: service_started
 
-  registry-service:
-    build:
-      context: ./registry_service
-      dockerfile: Dockerfile.dev
-    ports:
-      - 3001:3001
-    environment:
-      - PORT=3001
-      - NODE_ENV=development
-      - SERVICE_NAME=registry-service
-      - REGISTRY_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
-    volumes:
-      - ./registry_service/src:/leetcode-server/registry-service/src
-      - ./registry_service/package.json:/leetcode-server/registry-service/package.json
-      - ./registry_service/tsconfig.json:/leetcode-server/registry-service/tsconfig.json
-      - /leetcode-server/registry-service/node_modules
-    networks:
-      - backend
 
   problem-service:
     build:
@@ -129,7 +152,7 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-      registry-service:
+      consul-client:
         condition: service_started
     networks:
       - backend
@@ -170,7 +193,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      registry-service:
+      consul-client:
         condition: service_started
     networks:
       - backend
@@ -238,7 +261,7 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-      registry-service:
+      consul-client:
         condition: service_started
     volumes:
       - ./auth_service/src:/leetcode-server/auth-service/src

@@ -1,3 +1,4 @@
+import logger from "../config/logger.config";
 import { InstanceFactory } from "../factories/instance.factory";
 
 const instanceService = InstanceFactory.getInstanceService();
@@ -5,5 +6,6 @@ const instanceService = InstanceFactory.getInstanceService();
 export function startCacheRefresher() {
   setInterval(() => {
     instanceService.cleanupStaleInstances();
-  }, 300000); // every 5 minutes
+    logger.info("Removed all stale service instances")
+  }, 90000); // every 1.5 minutes
 }

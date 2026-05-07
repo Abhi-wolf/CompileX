@@ -9,14 +9,11 @@ import logger from "./config/logger.config";
 import { attachCorrelationIdMiddleware } from "./middlewares/correlation.middleware";
 import morganMiddleware from "./middlewares/morgan.middleware";
 import { mongoConnection } from "./config/db.config";
-
-import os from "os";
 import {
+  deregisterServiceInstance,
   registerServiceInstance,
-  startHeartbeat,
-} from "./api/register-service-instance.api";
-
-const systemHost = os.hostname();
+} from "./infra/consul/consul.register";
+import { serverInstance } from "./config/serverInstance.config";
 
 const app = express();
 
@@ -26,7 +23,6 @@ const app = express();
 
 app.use(attachCorrelationIdMiddleware);
 app.use(morganMiddleware);
-
 
 app.use(express.json());
 
@@ -55,21 +51,13 @@ async function initializeConnection() {
   }
 }
 
-const serviceInstance = {
-  serviceName: "problem-service",
-  instanceId: `problem-service-${systemHost}`,
-  host: systemHost,
-  port: serverConfig.PORT,
-};
-
 async function startServer() {
   try {
     await initializeConnection();
 
     const server = app.listen(serverConfig.PORT, async () => {
       logger.info(`Problem service is running on PORT ${serverConfig.PORT}`);
-      await registerServiceInstance(serviceInstance);
-      startHeartbeat(serviceInstance);
+      await registerServiceInstance(serverInstance);
     });
 
     const gracefulShutdown = async (signal: string) => {
@@ -80,6 +68,7 @@ async function startServer() {
 
         try {
           await mongoConnection.disconnect();
+          await deregisterServiceInstance(serverInstance.id);
           logger.info("All connections closed successfully");
           process.exit(0);
         } catch (error) {

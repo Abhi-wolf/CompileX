@@ -14,14 +14,10 @@ import {
 } from "./workers/status-update.worker";
 import { mongoConnection } from "./config/db.config";
 import { redisConnection } from "./config/redis.config";
-import {
-  registerServiceInstance,
-  startHeartbeat,
-} from "./apis/register-service-instance.api";
-import os from "os";
-import { verifyHAMCSignature } from "./middlewares/verifyHMACSignature";
+import { deregisterServiceInstance, registerServiceInstance } from "./infra/consul/consul.register";
+import { serverInstance } from "./config/serverInstance.config";
 
-const systemHost = os.hostname();
+
 const app = express();
 
 /**
@@ -32,7 +28,6 @@ app.use(attachCorrelationIdMiddleware);
 app.use(morganMiddleware);
 
 app.use(express.json());
-app.use(verifyHAMCSignature)
 
 app.use("/api/v1", v1Router);
 
@@ -43,12 +38,6 @@ app.use((req: Request, res: Response) => {
   });
 });
 
-const serviceInstance = {
-  serviceName: "submission-service",
-  instanceId: `submission-service-${systemHost}`,
-  host: systemHost,
-  port: serverConfig.PORT,
-};
 
 /**
  * Add the error handler middleware
@@ -75,9 +64,7 @@ async function startServer() {
     const server = app.listen(serverConfig.PORT, async () => {
       logger.info(`Submission service is running on PORT ${serverConfig.PORT}`);
       // Registering service instance with registry service
-      await registerServiceInstance(serviceInstance);
-      // Start heartbeat
-      startHeartbeat(serviceInstance);
+      await registerServiceInstance(serverInstance);
     });
 
     const gracefulShutdown = async (signal: string) => {
@@ -88,8 +75,9 @@ async function startServer() {
 
         try {
           await mongoConnection.disconnect();
-          await stopStatusUpdateWorkers();
           await redisConnection.disconnect();
+          await stopStatusUpdateWorkers();
+          await deregisterServiceInstance(serverInstance.id)
           logger.info("All connections closed successfully");
           process.exit(0);
         } catch (error) {

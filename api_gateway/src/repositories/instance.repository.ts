@@ -2,7 +2,7 @@ import logger from "../config/logger.config";
 
 export interface ServiceInstance {
   instanceId: string;
-  host: string;
+  address: string;
   port: number;
   lastHeartbeat: Date;
 }
@@ -14,13 +14,13 @@ export class InstanceRepository {
   addServiceInstanceToCache(
     serviceName: string,
     instanceId: string,
-    host: string,
+    address: string,
     port: number,
     lastHeartbeat: Date,
   ) {
     const serviceInstances = this.discoveryCache.get(serviceName) || [];
 
-    serviceInstances.push({ instanceId, host, port, lastHeartbeat });
+    serviceInstances.push({ instanceId, address, port, lastHeartbeat });
 
     this.discoveryCache.set(serviceName, serviceInstances);
 
@@ -50,7 +50,6 @@ export class InstanceRepository {
   }
 
   updateLastHeartbeat(serviceName: string, instanceId: string) {
-
     const serviceInstances = this.discoveryCache.get(serviceName);
 
     if (serviceInstances) {
@@ -65,7 +64,7 @@ export class InstanceRepository {
 
   removeServiceInstanceFromCache(serviceName: string, instanceId: string) {
     const serviceInstances = this.discoveryCache.get(serviceName);
-    
+
     if (serviceInstances) {
       const instanceIndex = serviceInstances.findIndex(
         (instance) => instance.instanceId === instanceId,

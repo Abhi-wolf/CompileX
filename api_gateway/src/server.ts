@@ -9,11 +9,13 @@ import logger from "./config/logger.config";
 import { attachCorrelationIdMiddleware } from "./middlewares/correlation.middleware";
 import morganMiddleware from "./middlewares/morgan.middleware";
 import { createProxy } from "./config/proxy";
-import { refreshAllServices } from "./utils/refresh.services";
-import { startCacheRefresher } from "./utils/refresh.cache";
+// import { refreshAllServices } from "./utils/refresh.services";
+// import { startCacheRefresher } from "./utils/refresh.cache";
 import { authorize } from "./middlewares/authorization.middleware";
 import helmet from "helmet";
 import cors from "cors";
+import { refreshAllServices } from "./utils/refresh.services";
+import { startCacheRefresher } from "./utils/refresh.cache";
 
 const app = express();
 
