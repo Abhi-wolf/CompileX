@@ -2,8 +2,6 @@ services:
   mongo:
     image: mongo:latest
     restart: unless-stopped
-    # ports:
-    #   - 27017:27017
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 30s
@@ -17,8 +15,6 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    # ports:
-    #   - 6379:6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
@@ -36,10 +32,6 @@ services:
       - POSTGRES_DB=auth_db
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-    # ports:
-    #   - 5432:5432
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready", "-U", "postgres"]
       interval: 10s
@@ -47,14 +39,36 @@ services:
       retries: 5
     networks:
       - postgres_db_network
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     
-  consul:
+  consul-client:
     image: hashicorp/consul
-    command: "agent -dev -client=0.0.0.0"
+    command: agent -retry-join=consul-server-1 -client=0.0.0.0
+    depends_on:
+      - consul-server-1
     ports:
-      - "8500:8500"
+      - 8500:8500
     networks:
-      - backend
+      - backend   
+  
+  consul-server-1:
+    image: hashicorp/consul
+    command: agent -server -bootstrap-expect=3 -node=consul-1 -bind=0.0.0.0 -client=0.0.0.0
+    networks:
+      - backend 
+
+  consul-server-2:
+    image: hashicorp/consul
+    command: agent -server -bootstrap-expect=3 -retry-join=consul-server-1 -node=consul-2
+    networks:
+      - backend 
+
+  consul-server-3:
+    image: hashicorp/consul
+    command: agent -server -bootstrap-expect=3 -retry-join=consul-server-1 -node=consul-3 
+    networks:
+      - backend 
 
   migrate:
     build:
@@ -80,7 +94,7 @@ services:
   # low-level kernel capabilities that normal containers do not have.
   dind:
     image: docker:24-dind
-    restart: always
+    restart: unless-stopped
     privileged: true
     environment:
       - DOCKER_TLS_CERTDIR=
@@ -92,48 +106,31 @@ services:
     networks:
       - execution
 
+
   api-gateway:
     build:
       context: ./api_gateway
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
       - 3000:3000
-    restart: unless-stopped
     environment:
       - PORT=3000
       - NODE_ENV=production
       - SERVICE_NAME=api-gateway
-      - REGISTRY_SERVICE_URL=http://registry-service:3001/api/v1
-      - REGISTRY_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
       - API_GATEWAY_HMAC_SHARED_SECRET=3049sKKJDIWEO2983023909234
       - FRONTEND_URL=http://localhost:5173
     networks:
       - backend
     depends_on:
-      - consul
-
-  # registry-service:
-  #   build:
-  #     context: ./registry_service
-  #     dockerfile: Dockerfile.dev
-  #   # ports:
-  #   #   - 3001:3001
-  #   restart: unless-stopped
-  #   environment:
-  #     - PORT=3001
-  #     - NODE_ENV=production
-  #     - SERVICE_NAME=registry-service
-  #     - REGISTRY_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
-  #   networks:
-  #     - backend
+      consul-client:
+        condition: service_started
 
 
   problem-service:
     build:
       context: ./problem_service
       dockerfile: Dockerfile
-    # ports:
-    #   - 3010:3010
     restart: unless-stopped
     environment:
       - PORT=3010
@@ -146,7 +143,7 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-      consul:
+      consul-client:
         condition: service_started
     networks:
       - backend
@@ -157,18 +154,15 @@ services:
     build:
       context: ./submission_service
       dockerfile: Dockerfile
+    restart: unless-stopped
     deploy:
       replicas: 2
     ports:
       - 3020-3021:3020
-    # ports:
-    #   - 3020:3020
-    restart: unless-stopped
     environment:
       - PORT=3020
       - DB_URI=mongodb://mongo:27017/leetcode_submission_service
       - PROBLEM_SERVICE_URL=http://problem-service:3010/api/v1
-      - REGISTRY_SERVICE_URL=http://registry-service:3001/api/v1
       - REDIS_URL=redis://redis:6379
       - SERVICE_NAME=submission-service
       - NODE_ENV=production
@@ -176,14 +170,13 @@ services:
       - SUBMISSION_QUEUE_NAME=submission_queue
       - STATUS_UPDATE_QUEUE_NAME=status_update_queue
       - STATUS_UPDATE_JOB_NAME=update-submission-status
-      - REGISTRY_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
       - API_GATEWAY_HMAC_SHARED_SECRET=3049sKKJDIWEO2983023909234
     depends_on:
       mongo:
         condition: service_healthy
       redis:
         condition: service_healthy
-      consul:
+      consul-client:
         condition: service_started
     networks:
       - backend
@@ -194,14 +187,13 @@ services:
     build:
       context: ./evaluation_service
       dockerfile: Dockerfile
+    restart: unless-stopped
     # ports:
     #   - 3030:3030
-    restart: unless-stopped
     environment:
       - PORT=3030
       - PROBLEM_SERVICE_URL=http://problem-service:3010/api/v1
       - SUBMISSION_SERVICE_URL=http://submission-service:3020/api/v1
-      - REGISTRY_SERVICE_URL=http://registry-service:3001/api/v1
       - REDIS_URL=redis://redis:6379
       - DOCKER_HOST=tcp://dind:2375
       - SERVICE_NAME=evaluation-service
@@ -224,9 +216,9 @@ services:
     build:
       context: ./auth_service
       dockerfile: Dockerfile
+    restart: unless-stopped
     # ports:
     #   - 3002:3002
-    restart: unless-stopped
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -240,15 +232,13 @@ services:
       - PORT=3002
       - NODE_ENV=production
       - SERVICE_NAME=auth-service
-      - REGISTRY_SERVICE_URL=http://registry-service:3001/api/v1
-      - REGISTRY_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
       - API_GATEWAY_HMAC_SHARED_SECRET=3049sKKJDIWEO2983023909234
     depends_on:
       postgres:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-      consul:
+      consul-client:
         condition: service_started
     networks:
       - backend

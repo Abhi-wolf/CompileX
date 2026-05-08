@@ -1,7 +1,7 @@
 services:
   mongo:
     image: mongo:latest
-    restart: always
+    restart: unless-stopped
     ports:
       - 27017:27017
     healthcheck:
@@ -16,7 +16,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    restart: always
+    restart: unless-stopped
     ports:
       - 6379:6379
     healthcheck:
@@ -26,32 +26,28 @@ services:
       retries: 3
     networks:
       - backend
+    volumes:
+      - redis_data:/data
 
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       - POSTGRES_DB=auth_db
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     ports:
       - 5432:5432
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready", "-U", "postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - backend
+      - postgres_db_network
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
-  # consul:
-  #   image: hashicorp/consul
-  #   command: agent -server -bootstrap-expect=3 -node=consul-1 -bind=0.0.0.0 -client=0.0.0.0
-  #   ports:
-  #     - "8500:8500"
-  #   networks:
-  #     - backend
 
   consul-client:
     image: hashicorp/consul
@@ -100,22 +96,39 @@ services:
         condition: service_healthy
     restart: on-failure
     networks:
-      - backend
-  
+      - postgres_db_network
 
+  
+  # docker inside docker
+  # privileged: true is required for Docker-in-Docker (DinD) because the inner Docker daemon (dockerd) needs
+  # low-level kernel capabilities that normal containers do not have.
+  dind:
+    image: docker:24-dind
+    restart: unless-stopped
+    privileged: true
+    environment:
+      - DOCKER_TLS_CERTDIR=
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - execution
+
+  
 
   api-gateway:
     build:
       context: ./api_gateway
       dockerfile: Dockerfile.dev
+    restart: unless-stopped
     ports:
       - 3000:3000
     environment:
       - PORT=3000
       - NODE_ENV=development
       - SERVICE_NAME=api-gateway
-      - REGISTRY_SERVICE_URL=http://registry-service:3001/api/v1
-      - REGISTRY_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
       - API_GATEWAY_HMAC_SHARED_SECRET=3049sKKJDIWEO2983023909234
       - FRONTEND_URL=http://localhost:5173
     volumes:
@@ -134,8 +147,7 @@ services:
     build:
       context: ./problem_service
       dockerfile: Dockerfile.dev
-    # ports:
-    #   - 3010:3010
+    restart: unless-stopped
     environment:
       - PORT=3010
       - DB_URI=mongodb://mongo:27017/leetcode_problem_service
@@ -156,11 +168,13 @@ services:
         condition: service_started
     networks:
       - backend
+      - mongo_db_network
 
   submission-service:
     build:
       context: ./submission_service
       dockerfile: Dockerfile.dev
+    restart: unless-stopped
     # ports:
     #   - 3020:3020
     deploy:
@@ -171,7 +185,6 @@ services:
       - PORT=3020
       - DB_URI=mongodb://mongo:27017/leetcode_submission_service
       - PROBLEM_SERVICE_URL=http://problem-service:3010/api/v1
-      - REGISTRY_SERVICE_URL=http://registry-service:3001/api/v1
       - REDIS_URL=redis://redis:6379
       - SERVICE_NAME=submission-service
       - NODE_ENV=development
@@ -179,7 +192,6 @@ services:
       - SUBMISSION_QUEUE_NAME=submission_queue
       - STATUS_UPDATE_QUEUE_NAME=status_update_queue
       - STATUS_UPDATE_JOB_NAME=update-submission-status
-      - REGISTRY_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
       - API_GATEWAY_HMAC_SHARED_SECRET=3049sKKJDIWEO2983023909234
     volumes:
       - ./submission_service/src:/leetcode-server/submission-service/src
@@ -197,11 +209,14 @@ services:
         condition: service_started
     networks:
       - backend
+      - mongo_db_network
+      - redis_network
 
   evaluation-service:
     build:
       context: ./evaluation_service
       dockerfile: Dockerfile.dev
+    restart: unless-stopped
     ports:
       - 3030:3030
     # deploy:
@@ -212,7 +227,6 @@ services:
       - PORT=3030
       - PROBLEM_SERVICE_URL=http://problem-service:3010/api/v1
       - SUBMISSION_SERVICE_URL=http://submission-service:3020/api/v1
-      - REGISTRY_SERVICE_URL=http://registry-service:3001/api/v1
       - REDIS_URL=redis://redis:6379
       - DOCKER_HOST=tcp://dind:2375
       - SERVICE_NAME=evaluation-service
@@ -232,12 +246,16 @@ services:
         condition: service_healthy
     networks:
       - backend
+      - execution
+      - redis_network
+
 
   auth-service:
     build:
       context: ./auth_service
       dockerfile: Dockerfile.dev
     command: npm run dev
+    restart: unless-stopped
     # ports:
     #   - 3002:3002
     environment:
@@ -253,8 +271,6 @@ services:
       - PORT=3002
       - NODE_ENV=development
       - SERVICE_NAME=auth-service
-      - REGISTRY_SERVICE_URL=http://registry-service:3001/api/v1
-      - REGISTRY_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
       - API_GATEWAY_HMAC_SHARED_SECRET=3049sKKJDIWEO2983023909234
     depends_on:
       postgres:
@@ -270,28 +286,22 @@ services:
       - /leetcode-server/auth-service/node_modules
     networks:
       - backend
+      - postgres_db_network
 
-  # docker inside docker
-  # privileged: true is required for Docker-in-Docker (DinD) because the inner Docker daemon (dockerd) needs
-  # low-level kernel capabilities that normal containers do not have.
-  dind:
-    image: docker:24-dind
-    restart: always
-    privileged: true
-    environment:
-      - DOCKER_TLS_CERTDIR=
-    healthcheck:
-      test: ["CMD", "docker", "info"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - backend
 
 networks:
-  backend:
+  backend:        # shared / API layer
+    driver: bridge
+  execution:      # isolated for dind + evaluation only
+    driver: bridge
+  mongo_db_network:     # only services that need their DB
+    driver: bridge
+  postgres_db_network:     # only services that need their DB
+    driver: bridge
+  redis_network:
     driver: bridge
 
 volumes:
-  leetcode_mongo_data:
+  redis_data:
   postgres_data:
+  leetcode_mongo_data:
