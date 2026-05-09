@@ -28,14 +28,91 @@ export class SubmissionService {
     this.cacheRepository = cacheRepository;
   }
 
+  private async getProblemWithCache(problemId: string) {
+    const cacheKey = `problem:${problemId}`;
+
+    // 1. check cache
+    const cachedProblem = await this.cacheRepository.getCachedProblem(cacheKey);
+
+    if (cachedProblem) {
+      logger.info(`Problem fetched from cache: ${problemId}`);
+      return cachedProblem;
+    }
+
+    // 2. fetch from problem service
+    const problem = await getProblemById(problemId);
+
+    if (!problem) {
+      return null;
+    }
+
+    // 3. store in cache
+    await this.cacheRepository.setCachedProblem(cacheKey, problem);
+
+    logger.info(`Problem cached after API fetch: ${problemId}`);
+
+    return problem;
+  }
+
+  async createContestSubmission(
+    submissionData: Partial<ISubmission>,
+    userId: string,
+  ): Promise<ISubmission> {
+    if (!submissionData.contestId) {
+      throw new NotFoundError("Contest ID is required");
+    }
+
+    const problem = await this.getProblemWithCache(submissionData.problemId!);
+
+    if (!problem) {
+      throw new NotFoundError(
+        `Problem with id ${submissionData.problemId} not found for contest ${submissionData.contestId}`,
+      );
+    }
+
+    //   add the submission payload to the database
+    const submission = await this.submissionRepository.create(
+      submissionData,
+      userId,
+    );
+
+    const jobData: ISubmissionJob = {
+      submissionId: submission.id.toString(),
+      problemId: submissionData.problemId!,
+      code: submissionData.code!,
+      language: submissionData.language!,
+      testcases: problem.testcases,
+    };
+
+    //   submission to redis queue for processing
+    let jobId: string | null = null;
+
+    try {
+      jobId = await addSubmissionJob(jobData, serverConfig.EVALUATION_JOB_NAME);
+      logger.info(`Added contest submission job with ID : ${jobId}`);
+    } catch (error) {
+      await this.submissionRepository.updateStatus(
+        submission.id.toString(),
+        SubmissionStatus.FAILED,
+      );
+
+      if (error instanceof QueueOverloadError) {
+        throw error;
+      }
+      throw new InternalServerError(
+        `Failed to add contest submission job for submission ID: ${submission.id}`,
+      );
+    }
+
+    return submission;
+  }
+
   async createSubmission(
     submissionData: Partial<ISubmission>,
     userId: string,
   ): Promise<ISubmission> {
     // get problem details from problem service
-    const problem = await getProblemById(submissionData.problemId!);
-
-    logger.info(`fetched problem from problem service with id ${problem?.id}`);
+    const problem = await this.getProblemWithCache(submissionData.problemId!);
 
     if (!problem) {
       throw new NotFoundError(

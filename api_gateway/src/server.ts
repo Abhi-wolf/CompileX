@@ -53,6 +53,12 @@ app.use(
 );
 
 app.use(
+  "/api/contests",
+  authorize,
+  createProxy({ name: "contests", serviceName: "problem-service" }),
+);
+
+app.use(
   "/api/submissions",
   authorize,
   createProxy({ name: "submissions", serviceName: "submission-service" }),

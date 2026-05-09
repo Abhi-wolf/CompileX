@@ -1,6 +1,7 @@
 import Redis from "ioredis";
 import logger from "../config/logger.config";
-// import { RunCodeStatus } from "../types/runCode.types";
+
+import { RunCodeStatus } from "../types/runCode.types";
 import { redisConnection } from "../config/redis.config";
 
 export class CacheRepository {
@@ -15,8 +16,8 @@ export class CacheRepository {
     return redis;
   }
 
-  // async getRunCodeStatus(key: string): Promise<RunCodeStatus[] | null> {
-  async getRunCodeStatus(key: string): Promise<any> {
+  async getRunCodeStatus(key: string): Promise<RunCodeStatus[] | null> {
+  // async getRunCodeStatus(key: string): Promise<any> {
     console.log("Getting run code status from cache for key: ", key);
     const redis = await this.getRedis();
     console.log("Redis connection established");

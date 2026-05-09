@@ -22,14 +22,15 @@ export interface ISubmissionData {
 }
 
 export interface ISubmission extends Document {
+  userId: string;
   code: string;
   problemId: string;
-  userId: string;
   language: SubmissionLanguage;
   createdAt: Date;
   updatedAt: Date;
   status: SubmissionStatus;
   submissionData: ISubmissionData;
+  contestId?: string;
   // we can add user id later for multi user support
 }
 
@@ -53,6 +54,7 @@ const submissionSchema = new mongoose.Schema<ISubmission>(
       required: true,
       default: {},
     },
+    contestId: { type: String, default: null },
   },
   {
     timestamps: true,

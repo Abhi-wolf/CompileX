@@ -32,6 +32,13 @@ submissionRouter.post(
   submissionController.createRun,
 );
 
+submissionRouter.post(
+  "/contest",
+  authorize,
+  validateRequestBody(createSubmissionSchema),
+  submissionController.createContestSubmission,
+);
+
 submissionRouter.get(
   "/run/:id",
   authorize,

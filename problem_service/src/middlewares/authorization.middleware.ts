@@ -17,7 +17,10 @@ export const authorize = (
       return;
     }
 
-    const decoded = jwt.verify(token, serverConfig.JWT_ACCESS_SECRET) as DecodedToken;
+    const decoded = jwt.verify(
+      token,
+      serverConfig.JWT_ACCESS_SECRET,
+    ) as DecodedToken;
     req.user = decoded;
 
     // console.log("decoded = ",decoded)
@@ -27,20 +30,27 @@ export const authorize = (
     logger.error("Authorization error:", error);
 
     if (error instanceof jwt.JsonWebTokenError) {
-      res.status(401).json({success:false, message: "Invalid token" });
+      res.status(401).json({ success: false, message: "Invalid token" });
       return;
     }
     next(error);
   }
 };
 
-
-export const authorizeRole = (role: string) => {
+export const authorizeRole = (...roles: string[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
-    if (!req.user?.roles || !req.user.roles.includes(role)) {
+    if (!req.user?.roles) {
       res.status(403).json({ success: false, message: "Forbidden" });
       return;
     }
+
+    const hasRole = roles.some((role) => req.user?.roles.includes(role));
+    
+    if (!hasRole) {
+      res.status(403).json({ success: false, message: "Forbidden" });
+      return;
+    }
+
     next();
   };
 };

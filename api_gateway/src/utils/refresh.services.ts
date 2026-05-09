@@ -3,7 +3,7 @@ import { KNOWN_SERVICES } from "../config/servicesInfos";
 import { InstanceFactory } from "../factories/instance.factory";
 import { getServiceInstances } from "../infra/consul/getServiceInstances";
 
-const CACHE_REFRESH_INTERVAL_MS = 60000;
+const CACHE_REFRESH_INTERVAL_MS = 30000;
 
 const instanceService = InstanceFactory.getInstanceService();
 

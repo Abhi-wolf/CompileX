@@ -1,7 +1,8 @@
 import Redis from "ioredis";
-// import { RunCodeStatus } from "../types/runCode.types";
-import { redisConnection } from "../config/redis.config";
 import logger from "../config/logger.config";
+import { RunCodeStatus } from "../types/submission.types";
+import { redisConnection } from "../config/redis.config";
+import { ICachedProblem } from "../types/problem.types";
 
 export class CacheRepository {
   private async getRedis(): Promise<Redis> {
@@ -14,13 +15,9 @@ export class CacheRepository {
     return redis;
   }
 
-  // async getRunCodeStatus(key: string): Promise<RunCodeStatus[] | null> {
-  async getRunCodeStatus(key: string): Promise<any> {
-    console.log("Getting run code status from cache for key: ", key);
+  async getRunCodeStatus(key: string): Promise<RunCodeStatus[] | null> {
     const redis = await this.getRedis();
-    console.log("Redis connection established");
     const result = await redis.get(key);
-    console.log("Result from cache: ", result);
 
     return result ? JSON.parse(result) : null;
   }
@@ -31,5 +28,20 @@ export class CacheRepository {
     await redis.set(key, value);
     await redis.expire(key, 60 * 60); // 1 hour
     logger.info("Run code status set in cache for key: ", key);
+  }
+
+  async getCachedProblem(key: string): Promise<ICachedProblem | null> {
+    const redis = await this.getRedis();
+    const result = await redis.get(key);
+
+    return result ? JSON.parse(result) : null;
+  }
+
+  async setCachedProblem(key: string, value: ICachedProblem): Promise<void> {
+    const redis = await this.getRedis();
+
+    await redis.set(key, JSON.stringify(value));
+    await redis.expire(key, 3 * 60 * 60); // 3 hour
+    logger.info("Problem cached in cache for key: ", key);
   }
 }

@@ -10,6 +10,30 @@ export class SubmissionController {
     this.submissionService = submissionService;
   }
 
+  createContestSubmission = async (req: AuthRequest, res: Response) => {
+    logger.info("Creating new contest submission", {
+      problemId: req.body.problemId,
+      language: req.body.language,
+    });
+
+    const userId = req.user?.userId as string;
+
+    const submission = await this.submissionService.createContestSubmission(
+      req.body,
+      userId,
+    );
+
+    logger.info("Contest submission created successfully", {
+      submissionId: submission.id,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Contest submission created successfully",
+      data: submission,
+    });
+  };
+
   createSubmission = async (req: AuthRequest, res: Response) => {
     logger.info("Creating new submission", {
       problemId: req.body.problemId,
