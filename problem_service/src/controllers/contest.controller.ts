@@ -47,4 +47,17 @@ export class ContestController {
       data: contests,
     });
   };
+
+  getContestLeaderboard = async (req: Request, res: Response) => {
+    const leaderboard = await this.contestService.getContestLeaderboard(
+      req.params.id,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Contest leaderboard fetched successfully",
+      data: leaderboard,
+    });
+  };
 }
+

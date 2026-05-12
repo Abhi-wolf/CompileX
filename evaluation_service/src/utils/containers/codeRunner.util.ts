@@ -20,20 +20,24 @@ export async function runCode(options: RunCodeOptions) {
     memoryLimitMB: 256 * 1024 * 1024, // 256 MiB
   });
 
+  if (!container) {
+    throw new Error("Container not created");
+  }
+
   let isTimeLimitExceeded = false;
   const timeLimitExceeded = setTimeout(() => {
     logger.info("Time limit exceeded. Stopping the container...");
     isTimeLimitExceeded = true;
-    container?.kill();
+    container.kill();
   }, timeout);
 
   // TODO  : add check when container not created
   logger.info(`Container created successfully with ID: ${container?.id}`);
 
   try {
-    await container?.start();
+    await container.start();
 
-    const status = await container?.wait();
+    const status = await container.wait();
 
     if (isTimeLimitExceeded) {
       return {
@@ -42,7 +46,7 @@ export async function runCode(options: RunCodeOptions) {
       };
     }
 
-    const logs = await container?.logs({
+    const logs = await container.logs({
       stdout: true,
       stderr: true,
     });
@@ -74,7 +78,9 @@ export async function runCode(options: RunCodeOptions) {
       executionTime: (Date.now() - startTime) / 1000,
     };
   } finally {
-    await container?.remove({ force: true }).catch((e) => logger.error("Cleanup error:", e.message));
+    await container
+      ?.remove({ force: true })
+      .catch((e) => logger.error("Cleanup error:", e.message));
     clearTimeout(timeLimitExceeded);
     logger.info("Container removed successfully.");
   }

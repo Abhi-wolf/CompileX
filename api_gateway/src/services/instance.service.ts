@@ -23,13 +23,14 @@ export class InstanceService {
       this.serviceInstanceRepository.getAllServicesFromCache();
 
     for (const [serviceName, instances] of allServices.entries()) {
-      const inActiveInstances = instances.filter(
+
+      const staleInstances = instances.filter(
         (instance) =>
-          now - new Date(instance.lastHeartbeat).getTime() <
+          now - new Date(instance.lastHeartbeat).getTime() >
           this.HEARTBEAT_TIMEOUT,
       );
 
-      for (const instance of inActiveInstances) {
+      for (const instance of staleInstances) {
         this.serviceInstanceRepository.removeServiceInstanceFromCache(
           serviceName,
           instance.instanceId,
@@ -37,7 +38,7 @@ export class InstanceService {
       }
 
       logger.debug(
-        `Refreshed ${serviceName}: ${inActiveInstances.length} inactive instances removed`,
+        `Refreshed ${serviceName}: ${staleInstances.length} inactive instances removed`,
       );
     }
   }
@@ -58,7 +59,7 @@ export class InstanceService {
       this.serviceInstanceRepository.getServiceInstancesFromCache(serviceName);
 
     let addedInstances: number = 0;
-    
+
     for (const instance of serviceInstance) {
       const isAlreadyPresent = serviceInstances?.some(
         (cached) => cached.instanceId === instance.instanceId,
@@ -71,8 +72,11 @@ export class InstanceService {
           instance.instanceId,
         );
 
-        logger.debug(`Instance ${instance.instanceId} of ${serviceName} was already present in the cache updated the last heartbeat`)
-        return true;
+        logger.debug(
+          `Instance ${instance.instanceId} of ${serviceName} was already present in the cache updated the last heartbeat`,
+        );
+        
+        continue;
       }
 
       const lastHeartbeat = new Date();
@@ -84,7 +88,7 @@ export class InstanceService {
         instance.port,
         lastHeartbeat,
       );
-      
+
       addedInstances++;
 
       result.push(res);
@@ -114,11 +118,12 @@ export class InstanceService {
   }
 
   getServiceInstancesFromCache(serviceName: string) {
-    const instances= this.serviceInstanceRepository.getServiceInstancesFromCache(
-      serviceName,
-    );
+    const instances =
+      this.serviceInstanceRepository.getServiceInstancesFromCache(serviceName);
 
-    logger.debug(`Total service instances for ${serviceName}: ${instances?.length}`);
+    logger.debug(
+      `Total service instances for ${serviceName}: ${instances?.length}`,
+    );
     return instances;
   }
 
@@ -126,8 +131,9 @@ export class InstanceService {
     const serviceInstances =
       this.serviceInstanceRepository.getServiceInstancesFromCache(serviceName);
 
-    
-    logger.debug(`Total service instances for ${serviceName}: ${serviceInstances?.length}`);
+    logger.debug(
+      `Total service instances for ${serviceName}: ${serviceInstances?.length}`,
+    );
 
     if (!serviceInstances || serviceInstances.length === 0) {
       throw new BadRequestError("No service instances found");

@@ -20,6 +20,7 @@ contestRouter.get(
 );
 
 contestRouter.use(authorize);
+
 contestRouter.post(
   "/",
   authorizeRole(UserRole.PROBLEM_SETTER, UserRole.ADMIN),
@@ -29,6 +30,10 @@ contestRouter.post(
 
 contestRouter.get("/", contestController.getAllContests);
 contestRouter.get("/upcoming", contestController.getUpcomingContests);
+contestRouter.get(
+  "/leaderboard/archived/:id",
+  contestController.getContestLeaderboard,
+);
 contestRouter.get("/:id", contestController.getContest);
 
 export default contestRouter;

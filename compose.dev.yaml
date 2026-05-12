@@ -10,7 +10,7 @@ services:
       timeout: 10s
       retries: 3
     networks:
-      - backend
+      - mongo_db_network
     volumes:
       - leetcode_mongo_data:/data/db
 
@@ -25,7 +25,7 @@ services:
       timeout: 10s
       retries: 3
     networks:
-      - backend
+      - redis_network
     volumes:
       - redis_data:/data
 
@@ -289,6 +289,30 @@ services:
     networks:
       - backend
       - postgres_db_network
+  
+  background-worker-service:
+    build:
+      context: ./background_worker_service
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - SERVICE_NAME=background-worker-service
+      - PROBLEM_DB_URI=mongodb://mongo:27017/leetcode_problem_service
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./background_worker_service/src:/leetcode-server/background-worker-service/src
+      - ./background_worker_service/package.json:/leetcode-server/background-worker-service/package.json
+      - ./background_worker_service/tsconfig.json:/leetcode-server/background-worker-service/tsconfig.json
+      - /leetcode-server/background-worker-service/node_modules
+    networks:
+      - mongo_db_network
+      - redis_network
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 
 networks:

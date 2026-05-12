@@ -91,7 +91,7 @@ export class CacheRepository {
   async getContestLeaderBoard(key: string) {
     const redis = await this.getRedis();
     const result = await redis.zrevrange(key, 0, -1, "WITHSCORES");
-    console.log("LEADERBOARD = ", result);
+
     const leaderboard = [];
 
     for (let i = 0; i < result.length; i += 2) {
@@ -123,6 +123,6 @@ export class CacheRepository {
     logger.info(
       `addContestSubmission key:${key}, problemId:${problemId}, wasNew:${result === 1}`,
     );
-    return result === 1; // ✅ true = first time this problem was solved
+    return result === 1;
   }
 }

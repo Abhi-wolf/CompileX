@@ -14,10 +14,12 @@ const refreshServices = async (serviceName: string) => {
     if (instances && instances.length > 0) {
       instanceService.addServiceInstanceToCache(serviceName, instances);
     }
-  } catch (error) {}
+  } catch (error) {
+    logger.error(`Error refreshing service ${serviceName}:`, error);
+  }
 };
 
-export const refreshAllServices = async () => {
+export const initializeServices = async () => {
   return Promise.all(
     Object.values(KNOWN_SERVICES).map((service) =>
       refreshServices(service.serviceName),
@@ -25,7 +27,16 @@ export const refreshAllServices = async () => {
   );
 };
 
-setInterval(() => {
-  refreshAllServices();
-  logger.info('Initiallly refreshed all services')
-}, CACHE_REFRESH_INTERVAL_MS);
+export function startCacheRefresher() {
+  setInterval(() => {
+    initializeServices();
+    logger.info("Refreshed all services");
+  }, CACHE_REFRESH_INTERVAL_MS);
+}
+
+export function removeStaleInstancesInterval() {
+  setInterval(() => {
+    instanceService.cleanupStaleInstances();
+    logger.info("Removed all stale service instances");
+  }, 90000); // every 1.5 minutes
+}

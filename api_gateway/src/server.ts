@@ -14,8 +14,11 @@ import { createProxy } from "./config/proxy";
 import { authorize } from "./middlewares/authorization.middleware";
 import helmet from "helmet";
 import cors from "cors";
-import { refreshAllServices } from "./utils/refresh.services";
-import { startCacheRefresher } from "./utils/refresh.cache";
+import {
+  initializeServices,
+  removeStaleInstancesInterval,
+  startCacheRefresher,
+} from "./utils/refresh.services";
 
 const app = express();
 
@@ -95,8 +98,9 @@ async function startServer() {
         `${serverConfig.SERVICE_NAME} is running on PORT ${serverConfig.PORT}`,
       );
 
-      await refreshAllServices();
-      startCacheRefresher(); // Refresh cache every 40 seconds
+      await initializeServices();
+      removeStaleInstancesInterval();
+      startCacheRefresher();
     });
 
     const gracefulShutdown = async (signal: string) => {

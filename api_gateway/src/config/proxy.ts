@@ -52,8 +52,8 @@ export const createProxy = (serviceDetail: {
 
     pathRewrite: { "^/": `/api/v1/${serviceDetail.name}/` },
 
-    proxyTimeout: 5000,
-    timeout: 5000,
+    proxyTimeout: 5000, // upstream service must respond within 5s
+    timeout: 10000, // client must finish sending request within 10s
 
     on: {
       proxyReq: (proxyReq, req: any) => {
@@ -100,10 +100,25 @@ export const createProxy = (serviceDetail: {
         }
       },
 
-      error: (err) => {
+      error: (err, req, res: any) => {
         logger.error(
           `Proxy error for ${serviceDetail.serviceName}: ${err.message}`,
         );
+
+        if (err.message.includes("ECONNREFUSED")) {
+          res.status(503).json({ message: "Service unavailable" });
+          return;
+        }
+
+        if (
+          (err as any).code === "ECONNRESET" ||
+          err.message.includes("timeout")
+        ) {
+          res.status(504).json({ message: "Service timed out" });
+          return;
+        }
+
+        res.status(500).json({ message: "Internal server error" });
       },
     },
   });

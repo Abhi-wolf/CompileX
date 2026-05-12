@@ -245,6 +245,25 @@ services:
     networks:
       - backend
       - postgres_db_network
+  
+  background-worker-service:
+    build:
+      context: ./background_worker_service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - SERVICE_NAME=background-worker-service
+      - PROBLEM_DB_URI=mongodb://mongo:27017/leetcode_problem_service
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - mongo_db_network
+      - redis_network
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 networks:
   backend:        # shared / API layer

@@ -1,12 +1,18 @@
+import { ContestLeaderboardRepository } from "../repositories/contest.leaderboard.repository";
 import { ContestRepository } from "../repositories/contest.repository";
 import { BadRequestError, NotFoundError } from "../utils/errors/app.error";
 import { CreateContestDto } from "../validators/contest.validator";
 
 export class ContestService {
   private contestRepository: ContestRepository;
+  private contestLeaderboardRepository: ContestLeaderboardRepository;
 
-  constructor(contestRepository: ContestRepository) {
+  constructor(
+    contestRepository: ContestRepository,
+    contestLeaderboardRepository: ContestLeaderboardRepository,
+  ) {
     this.contestRepository = contestRepository;
+    this.contestLeaderboardRepository = contestLeaderboardRepository;
   }
 
   async createContest(contest: CreateContestDto) {
@@ -59,5 +65,11 @@ export class ContestService {
       await this.contestRepository.getContestsByStartTime(startTime);
 
     return contests;
+  }
+
+  async getContestLeaderboard(contestId: string) {
+    return await this.contestLeaderboardRepository.getContestLeaderboard(
+      contestId,
+    );
   }
 }

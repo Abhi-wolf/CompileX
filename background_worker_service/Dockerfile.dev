@@ -1,0 +1,14 @@
+FROM node:lts-alpine3.23 AS development
+
+WORKDIR /leetcode-server/background-worker-service
+
+COPY package*.json ./
+
+RUN npm ci
+
+# Install dev dependencies
+RUN npm install --save-dev nodemon ts-node
+
+COPY . .
+
+CMD ["npm", "run", "dev"]
