@@ -32,4 +32,5 @@ export interface ISubmissionJob {
   code: string;
   language: SubmissionLanguage;
   testcases: IRunCodeTestcase[];
+  contestId?:string
 }

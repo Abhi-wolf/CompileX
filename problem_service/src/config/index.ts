@@ -6,10 +6,9 @@ type ServerConfig = {
   DB_URI: string;
   SERVICE_NAME: string;
   NODE_ENV: string;
-  REGISTRY_SERVICE_URL: string;
-  REGISTRY_HMAC_SHARED_SECRET: string;
   API_GATEWAY_HMAC_SHARED_SECRET: string;
   JWT_ACCESS_SECRET: string;
+  INTERNAL_HMAC_SHARED_SECRET: string;
 };
 
 function loadEnv() {
@@ -26,14 +25,12 @@ export const serverConfig: ServerConfig = {
   DB_URI:
     process.env.DB_URI || "mongodb://localhost:27017/leetcode_problem_service",
 
-  REGISTRY_SERVICE_URL:
-    process.env.REGISTRY_SERVICE_URL || "http://localhost:3001/api/v1",
-
-  REGISTRY_HMAC_SHARED_SECRET:
-    process.env.REGISTRY_HMAC_SHARED_SECRET || "kfsKE(@#*oweiKOQWID23984",
-
   API_GATEWAY_HMAC_SHARED_SECRET:
     process.env.API_GATEWAY_HMAC_SHARED_SECRET || "3049sKKJDIWEO2983023909234",
 
-  JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || "ldfjsdfkEKFHWK#&!#*81273",
+  JWT_ACCESS_SECRET:
+    process.env.JWT_ACCESS_SECRET || "ldfjsdfkEKFHWK#&!#*81273",
+
+  INTERNAL_HMAC_SHARED_SECRET:
+    process.env.INTERNAL_HMAC_SHARED_SECRET || "kfsKE(@#*oweiKOQWID23984",
 };

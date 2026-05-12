@@ -7,12 +7,12 @@ type ServerConfig = {
   NODE_ENV: string;
   PROBLEM_SERVICE_URL: string;
   SUBMISSION_SERVICE_URL: string;
-  REGISTRY_SERVICE_URL: string;
   EVALUATION_JOB_NAME: string;
   SUBMISSION_QUEUE_NAME: string;
   STATUS_UPDATE_QUEUE_NAME: string;
   STATUS_UPDATE_JOB_NAME: string;
   REDIS_URL: string;
+  CONTEST_SUBMISSION_STATUS_UPDATE_JOB_NAME:string;
 };
 
 function loadEnv() {
@@ -37,10 +37,11 @@ export const serverConfig: ServerConfig = {
   STATUS_UPDATE_JOB_NAME:
     process.env.STATUS_UPDATE_JOB_NAME || "update-submission-status",
 
+  CONTEST_SUBMISSION_STATUS_UPDATE_JOB_NAME:
+    process.env.CONTEST_SUBMISSION_STATUS_UPDATE_JOB_NAME || "contest-submission-status-update-status",
+
   PROBLEM_SERVICE_URL:
     process.env.PROBLEM_SERVICE_URL || "http://localhost:3010/api/v1",
   SUBMISSION_SERVICE_URL:
     process.env.SUBMISSION_SERVICE_URL || "http://localhost:3020/api/v1",
-  REGISTRY_SERVICE_URL:
-    process.env.REGISTRY_SERVICE_URL || "http://localhost:3001/api/v1",
 };

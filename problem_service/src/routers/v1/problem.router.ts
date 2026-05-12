@@ -6,7 +6,10 @@ import {
   searchProblemsSchema,
 } from "../../validators/problem.validator";
 import { ProblemFactory } from "../../factories/problem.factory";
-import { verifyHAMCSignature } from "../../middlewares/verifyHMACSignature";
+import {
+  verifyHAMCSignature,
+  verifyInternalHAMCSignature,
+} from "../../middlewares/verifyHMACSignature";
 import {
   authorize,
   authorizeRole,
@@ -19,11 +22,17 @@ const problemRouter = express.Router();
 // Get problem controller instance from factory
 const problemController = ProblemFactory.getProblemController();
 
+problemRouter.get(
+  "/internal-service-use/:id",
+  verifyInternalHAMCSignature,
+  problemController.getProblemById,
+);
+
+problemRouter.use(verifyHAMCSignature, authorize);
+
 // POST /problems - Create a new problem
 problemRouter.post(
   "/",
-  verifyHAMCSignature,
-  authorize,
   authorizeRole(UserRole.PROBLEM_SETTER),
   validateRequestBody(createProblemSchema),
   problemController.createProblem,
@@ -35,8 +44,6 @@ problemRouter.post(
 // we can also add filters in query params like difficulty and tags and to get all problems
 problemRouter.get(
   "/search",
-  verifyHAMCSignature,
-  authorize,
   validateQueryParams(searchProblemsSchema),
   problemController.searchProblems,
 );
@@ -48,8 +55,6 @@ problemRouter.get("/:id", problemController.getProblemById);
 // PUT /problems/:id - Update problem by ID
 problemRouter.put(
   "/:id",
-  verifyHAMCSignature,
-  authorize,
   authorizeRole(UserRole.PROBLEM_SETTER),
   validateRequestBody(updateProblemSchema),
   problemController.updateProblem,
@@ -58,8 +63,6 @@ problemRouter.put(
 // DELETE /problems/:id - Delete problem by ID
 problemRouter.delete(
   "/:id",
-  verifyHAMCSignature,
-  authorize,
   authorizeRole(UserRole.ADMIN),
   problemController.deleteProblem,
 );

@@ -37,7 +37,6 @@ export class ContestService {
       throw new NotFoundError("Contest not found");
     }
 
-
     if (contest.startTime > startTime) {
       throw new BadRequestError("Contest has not started yet");
     }
@@ -55,15 +54,10 @@ export class ContestService {
 
   async getUpcomingContests() {
     const startTime = new Date();
-    console.log("Getting upcoming contests", startTime);
-
-    const allContests = await this.contestRepository.getAllContests();
-    console.log("All contests", allContests);
 
     const contests =
       await this.contestRepository.getContestsByStartTime(startTime);
 
-    console.log("Upcoming contests", contests);
     return contests;
   }
 }

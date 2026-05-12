@@ -26,17 +26,23 @@ submissionRouter.post(
 );
 
 submissionRouter.post(
-  "/run",
-  authorize,
-  validateRequestBody(runCodeSchema),
-  submissionController.createRun,
-);
-
-submissionRouter.post(
   "/contest",
   authorize,
   validateRequestBody(createSubmissionSchema),
   submissionController.createContestSubmission,
+);
+
+submissionRouter.get(
+  "/contest/leaderboard/:id",
+  authorize,
+  submissionController.getContestLeaderboard,
+);
+
+submissionRouter.post(
+  "/run",
+  authorize,
+  validateRequestBody(runCodeSchema),
+  submissionController.createRun,
 );
 
 submissionRouter.get(

@@ -1,6 +1,7 @@
 import { getProblemById } from "../apis/problem.api";
 import logger from "../config/logger.config";
 import {
+  EvaluationStatus,
   ISubmission,
   ISubmissionData,
   SubmissionStatus,
@@ -16,6 +17,7 @@ import { CacheRepository } from "../repositories/cache.repository";
 import { IRunCodeSubmission, ISubmissionJob } from "../types/submission.types";
 import { serverConfig } from "../config";
 import { generateHMACSignature } from "../utils/generateHMACSignature";
+import { getContestById } from "../apis/contest.api";
 export class SubmissionService {
   private submissionRepository: ISubmissionRepository;
   private cacheRepository: CacheRepository;
@@ -28,7 +30,7 @@ export class SubmissionService {
     this.cacheRepository = cacheRepository;
   }
 
-  private async getProblemWithCache(problemId: string) {
+  private async getProblemFromCache(problemId: string) {
     const cacheKey = `problem:${problemId}`;
 
     // 1. check cache
@@ -54,6 +56,65 @@ export class SubmissionService {
     return problem;
   }
 
+  private async getContestProblemAndScoreFromCache(
+    contestId: string,
+    problemId: string,
+  ) {
+    const cacheKey = `contest:${contestId}`;
+
+    // 1. check cache
+    const cachedContest = await this.cacheRepository.getCachedContest(cacheKey);
+
+    // console.log("cachedContest", cachedContest?.problems);
+
+    const cachedProblem = cachedContest?.problems.find(
+      (problem) => problem.problemId.id === problemId,
+    );
+
+    if (cachedProblem && cachedProblem.problemId) {
+      logger.info(`Contest problem fetched from cache: ${contestId}`);
+
+      return { problem: cachedProblem.problemId, points: cachedProblem.points };
+    }
+
+    // 2. fetch from contest service
+    const contest = await getContestById(contestId);
+
+    // console.log("contest", contest?.problems);
+
+    if (!contest) {
+      return null;
+    }
+
+    // 3. store in cache
+    await this.cacheRepository.setCachedContest(cacheKey, contest);
+
+    logger.info(`Contest cached after API fetch: ${contestId}`);
+
+    const contestProblem = contest.problems.find(
+      (problem) => problem.problemId.id === problemId,
+    );
+
+    // console.log("contestProblem", contestProblem);
+
+    if (contestProblem && contestProblem.problemId) {
+      return {
+        problem: contestProblem.problemId,
+        points: contestProblem.points,
+      };
+    }
+
+    return null;
+  }
+
+  private isAllTestCasesPassed(testCases: ISubmissionData[]) {
+    let failedTestCases = testCases?.filter(
+      (testCase) => testCase.status !== EvaluationStatus.SUCCESS,
+    );
+
+    return failedTestCases?.length === 0;
+  }
+
   async createContestSubmission(
     submissionData: Partial<ISubmission>,
     userId: string,
@@ -62,9 +123,12 @@ export class SubmissionService {
       throw new NotFoundError("Contest ID is required");
     }
 
-    const problem = await this.getProblemWithCache(submissionData.problemId!);
+    const contestProblemDetail = await this.getContestProblemAndScoreFromCache(
+      submissionData.contestId!,
+      submissionData.problemId!,
+    );
 
-    if (!problem) {
+    if (!contestProblemDetail) {
       throw new NotFoundError(
         `Problem with id ${submissionData.problemId} not found for contest ${submissionData.contestId}`,
       );
@@ -81,7 +145,8 @@ export class SubmissionService {
       problemId: submissionData.problemId!,
       code: submissionData.code!,
       language: submissionData.language!,
-      testcases: problem.testcases,
+      testcases: contestProblemDetail.problem.testcases,
+      contestId: submissionData?.contestId,
     };
 
     //   submission to redis queue for processing
@@ -112,7 +177,7 @@ export class SubmissionService {
     userId: string,
   ): Promise<ISubmission> {
     // get problem details from problem service
-    const problem = await this.getProblemWithCache(submissionData.problemId!);
+    const problem = await this.getProblemFromCache(submissionData.problemId!);
 
     if (!problem) {
       throw new NotFoundError(
@@ -243,8 +308,10 @@ export class SubmissionService {
   async updateSubmissionStatus(
     id: string,
     status: SubmissionStatus,
-    submissionData: ISubmissionData,
+    submissionData: ISubmissionData[],
   ): Promise<ISubmission | null> {
+    console.log("updateSubmissionStatus", id, status, submissionData);
+
     const submission = await this.submissionRepository.updateStatus(
       id,
       status,
@@ -254,6 +321,72 @@ export class SubmissionService {
       throw new NotFoundError("Submission not found");
     }
     return submission;
+  }
+
+  async updateContestSubmissionStatus(
+    contestId: string,
+    id: string,
+    status: SubmissionStatus,
+    submissionData: ISubmissionData[],
+  ): Promise<ISubmission | null> {
+    logger.info(
+      `Updating contest submission status for contestId: ${contestId}, submissionId: ${id}, status: ${status}`,
+    );
+
+    const submission = await this.submissionRepository.updateStatus(
+      id,
+      status,
+      submissionData,
+    );
+
+    // TODO: check if all test cases passed and update contest score -- before updating check whether that problem's submission
+    // point is already added or not
+    // redis cache -- {contestId}:{problemId}:{userId}:status
+    // `contest:${contestId}:leaderboard`
+
+    if (!submission) {
+      throw new NotFoundError("Submission not found");
+    }
+
+    const submissionCheckKey = `contest:${contestId}:solved:${submission.userId}`;
+    const contestLeaderboardKey = `contest:${contestId}:leaderboard`;
+
+    const alltestcasepassed = this.isAllTestCasesPassed(submissionData);
+    const contestProblemDetail = await this.getContestProblemAndScoreFromCache(
+      contestId,
+      submission.problemId,
+    );
+
+    if (alltestcasepassed && contestProblemDetail) {
+      // check if the submission is made earlier or not
+
+      // const isSubmitted = await this.cacheRepository.contestSubmissionExists(
+      //   submissionCheckKey,
+      //   submission.problemId,
+      // );
+
+      const isFirstSubmission = await this.cacheRepository.addContestSubmission(
+        submissionCheckKey,
+        submission.problemId,
+      );
+
+      if (isFirstSubmission) {
+        await this.cacheRepository.updateContestLeaderBoard(
+          contestLeaderboardKey,
+          submission.userId,
+          contestProblemDetail.points,
+        );
+      }
+    }
+
+    return submission;
+  }
+
+  async getContestLeaderboard(contestId: string): Promise<any> {
+    const leaderboardKey = `contest:${contestId}:leaderboard`;
+    const leaderboard =
+      await this.cacheRepository.getContestLeaderBoard(leaderboardKey);
+    return leaderboard;
   }
 
   async getSubmissionsByProblemId(

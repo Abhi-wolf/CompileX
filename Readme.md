@@ -131,7 +131,6 @@ Services use HMAC-SHA256 signatures for secure inter-service communication:
 
 | Variable | Description |
 |----------|-------------|
-| `REGISTRY_HMAC_SHARED_SECRET` | Secret for service registration with Registry |
 | `API_GATEWAY_HMAC_SHARED_SECRET` | Secret for API Gateway to sign requests to services |
 
 ### Service Registration

@@ -3,22 +3,19 @@ import { v4 as uuidV4 } from "uuid";
 import { asyncLocalStorage } from "../utils/helpers/request.helpers";
 
 export const attachCorrelationIdMiddleware = (
-    req: Request,
-    res: Response,
-    next: NextFunction,
+  req: Request,
+  res: Response,
+  next: NextFunction,
 ) => {
-    // Generate a unique correlation ID
-    const correlationId = (req.headers["x-correlation-id"] as string) || uuidV4();
+  // Generate a unique correlation ID
+  const correlationId = (req.headers["x-correlation-id"] as string) || uuidV4();
 
-    req.headers["x-correlation-id"] = correlationId;
-    res.setHeader("x-correlation-id", correlationId);
+  req.headers["x-correlation-id"] = correlationId;
+  res.setHeader("x-correlation-id", correlationId);
 
-    // Call the next middleware or route handler
+  // Call the next middleware or route handler
 
-    console.log("attachCorrelationIdMiddleware Correlation ID:", correlationId);
-    // console.log("attachCorrelationIdMiddleware Request:", req.body);
-
-    asyncLocalStorage.run({ correlationId: correlationId }, () => {
-        next();
-    });
+  asyncLocalStorage.run({ correlationId: correlationId }, () => {
+    next();
+  });
 };

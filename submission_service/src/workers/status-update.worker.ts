@@ -37,6 +37,27 @@ async function setupStatusUpdateWorker() {
               logger.error(`Error processing job ${job.id}:`, error);
               throw error;
             }
+          } else if (job.name === serverConfig.CONTEST_SUBMISSION_STATUS_UPDATE_JOB_NAME) {
+            logger.info(
+              `Processing contest submission status update job ${job.id} for submission ID: ${job.data.submissionId}`,
+            );
+            const data = job.data;
+
+            try {
+              await submissionService.updateContestSubmissionStatus(
+                data.contestId,
+                data.submissionId,
+                data.status,
+                data.output,
+              );
+
+              logger.info(
+                `Contest submission status update job ${job.id} processed successfully for submission ID: ${data.submissionId}`,
+              );
+            } catch (error) {
+              logger.error(`Error processing contest submission status update job ${job.id}:`, error);
+              throw error;
+            }
           }
         },
       );

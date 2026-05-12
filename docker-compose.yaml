@@ -137,9 +137,8 @@ services:
       - DB_URI=mongodb://mongo:27017/leetcode_problem_service
       - NODE_ENV=production
       - SERVICE_NAME=problem-service
-      - REGISTRY_SERVICE_URL=http://registry-service:3001/api/v1
-      - REGISTRY_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
       - API_GATEWAY_HMAC_SHARED_SECRET=3049sKKJDIWEO2983023909234
+      - INTERNAL_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
     depends_on:
       mongo:
         condition: service_healthy
@@ -171,6 +170,8 @@ services:
       - STATUS_UPDATE_QUEUE_NAME=status_update_queue
       - STATUS_UPDATE_JOB_NAME=update-submission-status
       - API_GATEWAY_HMAC_SHARED_SECRET=3049sKKJDIWEO2983023909234
+      - INTERNAL_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
+      - CONTEST_SUBMISSION_STATUS_UPDATE_JOB_NAME=contest-submission-status-update-status
     depends_on:
       mongo:
         condition: service_healthy
@@ -201,6 +202,7 @@ services:
       - SUBMISSION_QUEUE_NAME=submission_queue
       - STATUS_UPDATE_QUEUE_NAME=status_update_queue
       - STATUS_UPDATE_JOB_NAME=update-submission-status
+      - CONTEST_SUBMISSION_STATUS_UPDATE_JOB_NAME=contest-submission-status-update-status
     depends_on:
       redis:
         condition: service_healthy

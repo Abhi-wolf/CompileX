@@ -12,9 +12,16 @@ export enum SubmissionLanguage {
   JS = "js",
 }
 
+export enum EvaluationStatus {
+  SUCCESS = "AC",
+  FAILED = "WA",
+  TIME_LIMIT_EXCEEDED = "TLE",
+  COMPILATION_ERROR = "CE",
+}
+
 export interface ISubmissionData {
   testCaseId: string;
-  status: string;
+  status: EvaluationStatus;
   errorMessage?: string;
   actualOutput?: string;
   expectedOutput?: string;
@@ -34,6 +41,36 @@ export interface ISubmission extends Document {
   // we can add user id later for multi user support
 }
 
+const submissionDataSchema = new mongoose.Schema<ISubmissionData>(
+  {
+    testCaseId: {
+      type: String,
+      required: [true, "Test case ID is required"],
+    },
+    status: {
+      type: String,
+      enum: Object.values(EvaluationStatus),
+      required: [true, "Status is required"],
+    },
+    errorMessage: {
+      type: String,
+      trim: true,
+    },
+    actualOutput: {
+      type: String,
+      trim: true,
+    },
+    expectedOutput: {
+      type: String,
+      trim: true,
+    },
+    executionTime: {
+      type: Number,
+    },
+  },
+  { _id: false },
+);
+
 const submissionSchema = new mongoose.Schema<ISubmission>(
   {
     userId: { type: String, required: [true, "User Id is required"] },
@@ -49,17 +86,13 @@ const submissionSchema = new mongoose.Schema<ISubmission>(
       enum: Object.values(SubmissionStatus),
       default: SubmissionStatus.PENDING,
     },
-    submissionData: {
-      type: Object,
-      required: true,
-      default: {},
-    },
+    submissionData: [submissionDataSchema],
     contestId: { type: String, default: null },
   },
   {
     timestamps: true,
     toJSON: {
-      transform: (doc, record) => {
+      transform: (_, record) => {
         delete (record as any).__v;
         record.id = record._id;
         delete (record as any)._id;

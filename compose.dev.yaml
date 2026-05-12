@@ -153,9 +153,8 @@ services:
       - DB_URI=mongodb://mongo:27017/leetcode_problem_service
       - NODE_ENV=development
       - SERVICE_NAME=problem-service
-      - REGISTRY_SERVICE_URL=http://registry-service:3001/api/v1
-      - REGISTRY_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
       - API_GATEWAY_HMAC_SHARED_SECRET=3049sKKJDIWEO2983023909234
+      - INTERNAL_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
     volumes:
       - ./problem_service/src:/leetcode-server/problem-service/src
       - ./problem_service/package.json:/leetcode-server/problem-service/package.json
@@ -193,6 +192,8 @@ services:
       - STATUS_UPDATE_QUEUE_NAME=status_update_queue
       - STATUS_UPDATE_JOB_NAME=update-submission-status
       - API_GATEWAY_HMAC_SHARED_SECRET=3049sKKJDIWEO2983023909234
+      - INTERNAL_HMAC_SHARED_SECRET=kfsKE(@#*oweiKOQWID23984
+      - CONTEST_SUBMISSION_STATUS_UPDATE_JOB_NAME=contest-submission-status-update-status
     volumes:
       - ./submission_service/src:/leetcode-server/submission-service/src
       - ./submission_service/package.json:/leetcode-server/submission-service/package.json
@@ -234,6 +235,7 @@ services:
       - SUBMISSION_QUEUE_NAME=submission_queue
       - STATUS_UPDATE_QUEUE_NAME=status_update_queue
       - STATUS_UPDATE_JOB_NAME=update-submission-status
+      - CONTEST_SUBMISSION_STATUS_UPDATE_JOB_NAME=contest-submission-status-update-status
     volumes:
       - ./evaluation_service/src:/leetcode-server/evaluation-service/src
       - ./evaluation_service/package.json:/leetcode-server/evaluation-service/package.json

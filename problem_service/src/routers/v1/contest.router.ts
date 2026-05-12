@@ -7,13 +7,19 @@ import {
 import { UserRole } from "../../types/user.roles.interface";
 import { validateRequestBody } from "../../validators";
 import { createContestSchema } from "../../validators/contest.validator";
+import { verifyInternalHAMCSignature } from "../../middlewares/verifyHMACSignature";
 
 const contestRouter = express.Router();
 
 const contestController = ContestFactory.getContestController();
 
-contestRouter.use(authorize);
+contestRouter.get(
+  "/internal-service-use/:id",
+  verifyInternalHAMCSignature,
+  contestController.getContest,
+);
 
+contestRouter.use(authorize);
 contestRouter.post(
   "/",
   authorizeRole(UserRole.PROBLEM_SETTER, UserRole.ADMIN),

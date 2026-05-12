@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosResponse } from "axios";
 import { serverConfig } from "../config";
 import {
+  BadRequestError,
   InternalServerError,
   NotFoundError,
   ServiceUnavailableError,
@@ -8,11 +9,11 @@ import {
 import logger from "../config/logger.config";
 import { getCorrelationId } from "../utils/helpers/request.helpers";
 import { CircuitBreaker } from "../utils/circuit-breaker";
-import { ICachedProblem, IProblemDetails } from "../types/problem.types";
+import { ICachedContest } from "../types/problem.types";
 import { generateHMACSignature } from "../utils/generateHMACSignature";
 
-interface IProblemResponse {
-  data: IProblemDetails;
+interface IContestResponse {
+  data: ICachedContest;
   message: string;
   success: boolean;
 }
@@ -24,16 +25,15 @@ const problemServiceCircuitBreaker = new CircuitBreaker({
 });
 
 // TODO: can get problem service from consul
-export async function getProblemById(
-  problemId: string,
-): Promise<ICachedProblem | null> {
+export async function getContestById(
+  contestId: string,
+): Promise<ICachedContest | null> {
   return problemServiceCircuitBreaker.execute(async () => {
     try {
       const correlationId = getCorrelationId();
 
-      const path = `/api/v1/problems/internal-service-use/${problemId}`;
-      const url = `${serverConfig.PROBLEM_SERVICE_URL}/problems/internal-service-use/${problemId}`;
-      // const url = `${serverConfig.PROBLEM_SERVICE_URL}${path}`;
+      const path = `/api/v1/contests/internal-service-use/${contestId}`;
+      const url = `${serverConfig.PROBLEM_SERVICE_URL}/contests/internal-service-use/${contestId}`;
 
       const timestamp = Date.now().toString();
 
@@ -49,7 +49,7 @@ export async function getProblemById(
         serverConfig.INTERNAL_HMAC_SHARED_SECRET,
       );
 
-      const response: AxiosResponse<IProblemResponse> = await axios.get(url, {
+      const response: AxiosResponse<IContestResponse> = await axios.get(url, {
         headers: {
           "x-correlation-id": correlationId,
           "x-internal-hmac-signature": hmac,
@@ -60,18 +60,14 @@ export async function getProblemById(
 
       if (!response.data.success) {
         throw new InternalServerError(
-          `Failed to fetch problem with id ${problemId}`,
+          `Failed to fetch contest with id ${contestId}`,
         );
       }
 
-      return {
-        id: response.data.data.id,
-        title: response.data.data.title,
-        testcases: response.data.data.testcases,
-      };
+      return response.data.data;
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        logger.error("Axios error while fetching problem", {
+        logger.error("Axios error while fetching contest", {
           message: error.message,
           code: error.code,
           status: error.response?.status,
@@ -85,6 +81,10 @@ export async function getProblemById(
           axiosError.response?.data?.message ||
           axiosError.message ||
           "Problem service request failed";
+
+        if (status === 400) {
+          throw new BadRequestError(message);
+        }
 
         // 401
         if (status === 401) {

@@ -16,7 +16,7 @@ export interface IContest extends Document {
   startTime: Date;
   endTime: Date;
   problems: IContestProblem[];
-  status: ContestStatus;
+  // status: ContestStatus;
 }
 
 const contestProblemSchema = new mongoose.Schema<IContestProblem>(
@@ -53,14 +53,14 @@ const contestSchema = new mongoose.Schema<IContest>(
       type: [contestProblemSchema],
       required: [true, "Problems are required"],
     },
-    status: {
-      type: String,
-      enum: {
-        values: Object.values(ContestStatus),
-        message: "Invalid contest status",
-      },
-      default: ContestStatus.UPCOMING,
-    },
+    // status: {
+    //   type: String,
+    //   enum: {
+    //     values: Object.values(ContestStatus),
+    //     message: "Invalid contest status",
+    //   },
+    //   default: ContestStatus.UPCOMING,
+    // },
   },
   {
     timestamps: true,

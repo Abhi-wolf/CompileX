@@ -178,4 +178,19 @@ export class SubmissionController {
       data: result,
     });
   };
+
+  getContestLeaderboard = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    logger.info("Getting contest leaderboard", { contestId: id });
+
+    const result = await this.submissionService.getContestLeaderboard(id);
+
+    logger.info("Contest leaderboard fetched successfully", { contestId: id });
+
+    res.status(200).json({
+      success: true,
+      message: "Contest leaderboard fetched successfully",
+      data: result,
+    });
+  };
 }

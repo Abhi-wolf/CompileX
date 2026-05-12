@@ -14,8 +14,6 @@ type ServerConfig = {
   JWT_REFRESH_SECRET: string;
   JWT_ACCESS_EXPIRES_IN: string;
   JWT_REFRESH_EXPIRES_IN: string;
-  REGISTRY_SERVICE_URL: string;
-  REGISTRY_HMAC_SHARED_SECRET: string;
   API_GATEWAY_HMAC_SHARED_SECRET: string;
 };
 
@@ -41,13 +39,6 @@ export const serverConfig: ServerConfig = {
     process.env.JWT_REFRESH_SECRET || "ldfjsdfkEKFHWK#&!#*81273",
   JWT_ACCESS_SECRET:
     process.env.JWT_ACCESS_SECRET || "ldfjsdfkEKFHWK#&!#*81273",
-
-  
-  REGISTRY_SERVICE_URL:
-    process.env.REGISTRY_SERVICE_URL || "http://localhost:3001/api/v1",
-    
-  REGISTRY_HMAC_SHARED_SECRET:
-    process.env.REGISTRY_HMAC_SHARED_SECRET || "kfsKE(@#*oweiKOQWID23984",
 
   API_GATEWAY_HMAC_SHARED_SECRET:
     process.env.API_GATEWAY_HMAC_SHARED_SECRET || "3049sKKJDIWEO2983023909234",

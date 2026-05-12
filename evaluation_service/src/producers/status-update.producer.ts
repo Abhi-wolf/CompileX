@@ -7,7 +7,8 @@ import { getCorrelationId } from "../utils/helpers/request.helpers";
 interface IStatusUpdateProducer {
   submissionId: string;
   status: string;
-  output: Record<string, ISubmissionData>;
+  output: ISubmissionData[];
+  contestId?: string;
 }
 
 export async function addStatusUpdateJob(
@@ -21,14 +22,25 @@ export async function addStatusUpdateJob(
       correlationId: correlationId,
     };
 
-    const job = await statusUpdateQueue.add(
-      serverConfig.STATUS_UPDATE_JOB_NAME,
-      jobData,
-    );
+    let job = null;
 
-    logger.info(
-      `Added status update job with ID: ${job.id} for submission ID: ${data.submissionId}`,
-    );
+    if (data.contestId) {
+      job = await statusUpdateQueue.add(
+        serverConfig.CONTEST_SUBMISSION_STATUS_UPDATE_JOB_NAME,
+        jobData,
+      );
+      logger.info(
+        `Added contest submission status update job with contest ID: ${data.contestId}, submission ID: ${data.submissionId} and Job ID: ${job.id}`,
+      );
+    } else {
+      job = await statusUpdateQueue.add(
+        serverConfig.STATUS_UPDATE_JOB_NAME,
+        jobData,
+      );
+      logger.info(
+        `Added status update job with ID: ${job.id} for submission ID: ${data.submissionId}`,
+      );
+    }
 
     return job.id || null;
   } catch (error) {

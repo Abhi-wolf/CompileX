@@ -28,6 +28,7 @@ export interface EvaluationJob {
   problemId: string;
   correlationId: string;
   testcases: TestCase[];
+  contestId?: string;
 }
 
 export interface EvaluationResult {

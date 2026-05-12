@@ -23,7 +23,7 @@ function matchTestCasesWithResults(
   testCases: TestCase[],
   results: EvaluationResult[],
 ) {
-  const output: Record<string, ISubmissionData> = {};
+  const output: ISubmissionData[] = [];
 
   if (results.length !== testCases.length) {
     logger.error("Number of results does not match number of test cases");
@@ -34,41 +34,41 @@ function matchTestCasesWithResults(
     const result = results[index];
 
     if (result.status === "time_limit_exceeded") {
-      output[testCase.id] = {
+      output.push({
         testCaseId: testCase.id,
         status: EvaluationStatus.TIME_LIMIT_EXCEEDED,
         errorMessage: "Time limit exceeded",
         actualOutput: result.output,
         expectedOutput: testCase.output,
         executionTime: result.executionTime || 0,
-      };
+      });
     } else if (result.status === "failed") {
-      output[testCase.id] = {
+      output.push({
         testCaseId: testCase.id,
         status: EvaluationStatus.COMPILATION_ERROR,
         errorMessage: result.errorMessage || "Compilation error",
         actualOutput: result.output,
         expectedOutput: testCase.output,
         executionTime: result.executionTime || 0,
-      };
+      });
     } else {
       if (result.output === testCase.output) {
-        output[testCase.id] = {
+        output.push({
           testCaseId: testCase.id,
           status: EvaluationStatus.SUCCESS,
           actualOutput: result.output,
           expectedOutput: testCase.output,
           executionTime: result.executionTime || 0,
-        };
+        });
       } else {
-        output[testCase.id] = {
+        output.push({
           testCaseId: testCase.id,
           status: EvaluationStatus.FAILED,
           errorMessage: "Wrong answer",
           actualOutput: result.output,
           expectedOutput: testCase.output,
           executionTime: result.executionTime || 0,
-        };
+        });
       }
     }
   });
@@ -87,6 +87,8 @@ async function setupEvaluationWorker() {
           if (job.name === serverConfig.EVALUATION_JOB_NAME) {
             logger.info(`Processing job ${job.id}`);
             const data: EvaluationJob = job.data;
+
+            console.log("EvaluationJob=", data);
 
             try {
               const testCasesRunnerPormises = data.testcases.map((testCase) => {
@@ -107,18 +109,20 @@ async function setupEvaluationWorker() {
                 testCasesRunnerResults,
               );
 
+              console.log("EvaluationWorker output=", output);
+
               await addStatusUpdateJob({
                 submissionId: data.submissionId,
                 status: "completed",
                 output: output || {},
+                contestId: data?.contestId || "",
               });
-
             } catch (error) {
               logger.error(`Error processing job ${job.id}:`, error);
               // throw error to retry the job
               throw new Error("Failed to process submission job");
             }
-          } 
+          }
           // Run code job
           else if (job.name === "RUN_CODE") {
             logger.info(`Processing RUN_CODE job ${job.id}`);

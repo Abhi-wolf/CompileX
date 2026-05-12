@@ -21,3 +21,25 @@ export interface IProblemDetails {
   editorial?: string;
   testcases: ITestCase[];
 }
+
+interface IContestProblem {
+  problemId: {
+    id: string;
+    title: string;
+    description: string;
+    difficulty: "easy" | "medium" | "hard";
+    tags?: string[];
+    createdAt: Date;
+    updatedAt: Date;
+    editorial?: string;
+    testcases: ITestCase[];
+  };
+  points: number;
+}
+
+export interface ICachedContest {
+  name: string;
+  startTime: Date;
+  endTime: Date;
+  problems: IContestProblem[];
+}
