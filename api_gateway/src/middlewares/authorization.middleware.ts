@@ -21,6 +21,7 @@ export const authorize = (
       res
         .status(401)
         .json({ message: "Token not found, validation at API GATEWAY" });
+        
       return;
     }
 

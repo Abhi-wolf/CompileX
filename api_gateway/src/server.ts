@@ -41,7 +41,7 @@ app.use(
   }),
 );
 
-app.use("/api/v1", v1Router);
+app.use("/api", v1Router);
 
 app.use(
   "/api/auth",

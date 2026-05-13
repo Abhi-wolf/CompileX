@@ -14,8 +14,13 @@ const refreshServices = async (serviceName: string) => {
     if (instances && instances.length > 0) {
       instanceService.addServiceInstanceToCache(serviceName, instances);
     }
-  } catch (error) {
-    logger.error(`Error refreshing service ${serviceName}:`, error);
+  } catch (error: any) {
+    logger.error(`Error refreshing service ${serviceName}:`);
+    // logger.error({
+    //   message: `Error refreshing service ${serviceName}`,
+    //   error: error.message,
+    //   stack: error.stack,
+    // });
   }
 };
 

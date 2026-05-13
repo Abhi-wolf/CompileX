@@ -37,7 +37,14 @@ const contestLeaderboardSchema = new mongoose.Schema<IContestLeaderboard>(
   },
   {
     timestamps: true,
-    _id: false,
+    toJSON: {
+      transform: (doc, record: any) => {
+        delete record.__v;
+        record.id = record._id;
+        delete record._id;
+        return record;
+      },
+    },
   },
 );
 

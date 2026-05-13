@@ -2,8 +2,8 @@ services:
   mongo:
     image: mongo:latest
     restart: unless-stopped
-    ports:
-      - 27017:27017
+    # ports:
+    #   - 27017:27017
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 30s
@@ -13,12 +13,14 @@ services:
       - mongo_db_network
     volumes:
       - leetcode_mongo_data:/data/db
+    labels:
+      - "traefik.enable=false"
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      - 6379:6379
+    # ports:
+    #   - 6379:6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
@@ -28,6 +30,8 @@ services:
       - redis_network
     volumes:
       - redis_data:/data
+    labels:
+      - "traefik.enable=false"
 
   postgres:
     image: postgres:16-alpine
@@ -36,8 +40,8 @@ services:
       - POSTGRES_DB=auth_db
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-    ports:
-      - 5432:5432
+    # ports:
+    #   - 5432:5432
     healthcheck:
       test: ["CMD-SHELL", "pg_isready", "-U", "postgres"]
       interval: 10s
@@ -47,6 +51,8 @@ services:
       - postgres_db_network
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    labels:
+      - "traefik.enable=false"
 
 
   consul-client:
@@ -54,28 +60,61 @@ services:
     command: agent -retry-join=consul-server-1 -client=0.0.0.0
     depends_on:
       - consul-server-1
-    ports:
-      - 8500:8500
+    # ports:
+    #   - 8500:8500
     networks:
       - backend   
+    labels:
+      - "traefik.enable=false"
   
   consul-server-1:
     image: hashicorp/consul
     command: agent -server -bootstrap-expect=3 -node=consul-1 -bind=0.0.0.0 -client=0.0.0.0
     networks:
       - backend 
+    labels:
+      - "traefik.enable=false"
 
   consul-server-2:
     image: hashicorp/consul
     command: agent -server -bootstrap-expect=3 -retry-join=consul-server-1 -node=consul-2
     networks:
       - backend 
+    labels:
+      - "traefik.enable=false"
 
   consul-server-3:
     image: hashicorp/consul
     command: agent -server -bootstrap-expect=3 -retry-join=consul-server-1 -node=consul-3 
     networks:
       - backend 
+    labels:
+      - "traefik.enable=false"
+
+  
+  reverse-proxy:
+    image: traefik:v3.7
+    restart: unless-stopped
+    command:
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+
+      # API & Dashboard   (only for dev)
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      
+    ports:
+      - 80:80
+      - 8080:8080
+    volumes:  
+      - /var/run/docker.sock:/var/run/docker.sock:ro    # mounts the docker socket for traefik to discover containers
+    networks:
+      - reverse-proxy
+      - backend
+    labels:   # for traefik dashboard (for dev only, access dashboard at http://traefik.docker.localhost)
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.docker.localhost`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
 
 
       
@@ -97,6 +136,8 @@ services:
     restart: on-failure
     networks:
       - postgres_db_network
+    labels:
+      - "traefik.enable=false"
 
   
   # docker inside docker
@@ -115,6 +156,8 @@ services:
       retries: 3
     networks:
       - execution
+    labels:
+      - "traefik.enable=false"
 
   
 
@@ -123,8 +166,10 @@ services:
       context: ./api_gateway
       dockerfile: Dockerfile.dev
     restart: unless-stopped
-    ports:
-      - 3000:3000
+    # ports:
+    #   - 3000:3000
+    deploy:
+      replicas: 2
     environment:
       - PORT=3000
       - NODE_ENV=development
@@ -138,9 +183,26 @@ services:
       - /leetcode-server/api-gateway/node_modules
     networks:
       - backend
+      - reverse-proxy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/api-gateway/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     depends_on:
       consul-client:
         condition: service_started
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=reverse-proxy"
+      - "traefik.http.routers.api-gateway.rule=Host(`compileX.docker.localhost`)"
+      - "traefik.http.routers.api-gateway.entrypoints=web"
+      - "traefik.http.services.api-gateway.loadbalancer.server.port=3000"
+      - "traefik.http.services.api-gateway.loadbalancer.healthcheck.path=/api/api-gateway/health"
+      - "traefik.http.services.api-gateway.loadbalancer.healthcheck.interval=10s"
+      - "traefik.http.services.api-gateway.loadbalancer.healthcheck.timeout=3s"
+      - "traefik.http.services.api-gateway.loadbalancer.healthcheck.port=3000"
 
 
   problem-service:
@@ -148,6 +210,8 @@ services:
       context: ./problem_service
       dockerfile: Dockerfile.dev
     restart: unless-stopped
+    deploy:
+      replicas: 2
     environment:
       - PORT=3010
       - DB_URI=mongodb://mongo:27017/leetcode_problem_service
@@ -168,6 +232,8 @@ services:
     networks:
       - backend
       - mongo_db_network
+    labels:
+      - "traefik.enable=false"
 
   submission-service:
     build:
@@ -178,8 +244,8 @@ services:
     #   - 3020:3020
     deploy:
       replicas: 2
-    ports:
-      - 3020-3021:3020
+    # ports:
+    #   - 3020-3021:3020
     environment:
       - PORT=3020
       - DB_URI=mongodb://mongo:27017/leetcode_submission_service
@@ -212,14 +278,16 @@ services:
       - backend
       - mongo_db_network
       - redis_network
+    labels:
+      - "traefik.enable=false"
 
   evaluation-service:
     build:
       context: ./evaluation_service
       dockerfile: Dockerfile.dev
     restart: unless-stopped
-    ports:
-      - 3030:3030
+    # ports:
+    #   - 3030:3030
     # deploy:
     #   replicas: 3
     # ports:
@@ -250,7 +318,8 @@ services:
       - backend
       - execution
       - redis_network
-
+    labels:
+      - "traefik.enable=false"
 
   auth-service:
     build:
@@ -289,6 +358,8 @@ services:
     networks:
       - backend
       - postgres_db_network
+    labels:
+      - "traefik.enable=false"
   
   background-worker-service:
     build:
@@ -313,9 +384,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    labels:
+      - "traefik.enable=false"
 
 
 networks:
+  reverse-proxy:
+    driver: bridge
   backend:        # shared / API layer
     driver: bridge
   execution:      # isolated for dind + evaluation only
@@ -326,6 +401,7 @@ networks:
     driver: bridge
   redis_network:
     driver: bridge
+
 
 volumes:
   redis_data:
