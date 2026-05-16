@@ -32,8 +32,10 @@ export const looseRoutes = [
 export const moderateRoutes = [
   { path: "/api/submissions/run", method: "POST" }, // run code route
   { path: "/api/submissions/problem/:id", method: "GET" }, // get submission details
+  { path: "/api/submissions/:id", method: "GET" }, // get submission by id
 
   { path: "/api/contests", method: "GET" }, // get all contests details
+  { path: "/api/contests/upcoming", method: "GET" }, // get upcoming contests
   { path: "/api/contests/leaderboard/archived/:id", method: "GET" }, // get contest archieved leaderboard
 ];
 
@@ -45,8 +47,11 @@ export const strictRoutes = [
   { path: "/api/auth/refreshToken", method: "PUT" }, // refresh token
   { path: "/api/submissions/submit", method: "POST" }, // submit solution
 
+  { path: "/api/problems", method: "POST" }, // create problem
+  { path: "/api/problems/:id", method: "PUT" }, // update problem
+  { path: "/api/problems/:id", method: "DELETE" }, // delete problem
+
   { path: "/api/contests", method: "POST" }, // create contest
-  { path: "/api/contests/:id", method: "PUT" }, // update contest
   { path: "/api/contests/:id", method: "GET" }, // get contest details
   { path: "/api/contests/:id", method: "DELETE" }, // delete upcoming contest
   { path: "/api/submissions/contest", method: "POST" }, // submit contest solution

@@ -2,62 +2,97 @@
 
 A scalable microservices-based backend system for running and evaluating code submissions, similar to LeetCode. Built with Node.js, TypeScript, and Docker.
 
-## 🏗️ Architecture
+## Architecture
 
-This system consists of five main microservices:
+```mermaid
+flowchart TB
+  Client --> Traefik[Traefik :80]
+  Traefik --> GW[api-gateway]
+  GW --> Consul[Consul health API]
+  GW --> Auth[auth-service]
+  GW --> Problem[problem-service]
+  GW --> Submission[submission-service]
+  Submission --> Redis[(Redis)]
+  Submission --> Eval[evaluation-service]
+  Eval --> DinD[Docker-in-Docker]
+  BW[background-worker-service] --> Mongo[(Mongo problem DB)]
+  BW --> Redis
+  Problem --> Mongo
+```
 
-| Service                | Port | Description                                                | Database         |
-| ---------------------- | ---- | ---------------------------------------------------------- | ---------------- |
-| **API Gateway**        | 3000 | Entry point for all client requests, service discovery, routing | None (stateless) |
-| **Registry Service**   | 3001 | Service discovery and registration hub for all microservices | None (in-memory) |
-| **Auth Service**       | 3002 | Handles user authentication, authorization, and user data  | PostgreSQL       |
-| **Problem Service**    | 3010 | Manages coding problems, test cases, and problem metadata  | MongoDB          |
-| **Submission Service** | 3020 | Handles code submissions, user data, and submission status | MongoDB          |
-| **Evaluation Service** | 3030 | Executes code in isolated containers and evaluates results | None (stateless) |
+### Microservices
 
-### 🔧 Supporting Infrastructure
+| Service | Port (internal) | Description | Database | Consul |
+| ------- | --------------- | ----------- | -------- | ------ |
+| **API Gateway** | 3000 | Traefik-routed entry; JWT auth, rate limiting, service discovery, routing | None | Consumer only |
+| **Auth Service** | 3002 | User authentication, authorization, and user data | PostgreSQL | Yes |
+| **Problem Service** | 3010 | Coding problems, contests, test cases, archived leaderboards | MongoDB | Yes |
+| **Submission Service** | 3020 | Submissions, run-code, contest submissions, live leaderboards | MongoDB | Yes |
+| **Evaluation Service** | 3030 | Code execution in isolated containers (BullMQ worker) | None | No |
+| **Background Worker** | — | Cron jobs: contest status transitions, leaderboard persistence | MongoDB (problem DB) | No |
 
-- **MongoDB**: Primary database for problem and submission data
-- **PostgreSQL**: Relational database for authentication data
-- **Redis**: Message queue and caching layer (BullMQ)
+### Supporting infrastructure
+
+- **Traefik v3.7**: Reverse proxy and load balancer (public entry on port 80)
+- **Consul**: 3-server cluster + client for service registration and health-based discovery
+- **MongoDB**: Problem, submission, and contest data
+- **PostgreSQL**: Authentication data
+- **Redis**: BullMQ queues, rate limiting, contest leaderboard cache, run-code deduplication
 - **Docker-in-Docker**: Isolated code execution environment
 - **Winston**: Structured logging with daily rotation
 
-### 🔐 Security & Networking
+### Access model
 
-- **Network Isolation**: Services communicate via isolated Docker networks (backend, execution, mongo_db_network, postgres_db_network, redis_network)
-- **HMAC Authentication**: Request signing between API Gateway ↔ Services and Service ↔ Registry
-- **Service Registration**: All services register with Registry Service for dynamic discovery
-- **Minimal Port Exposure**: Only API Gateway (port 3000) is exposed externally; all other services are internal-only
+- **API (production & dev):** `http://compileX.docker.localhost` (Traefik → API Gateway)
+- **Traefik dashboard (dev only):** `http://traefik.docker.localhost:8080`
+- **Consul UI (production):** `http://localhost:8500`
+- Direct port `3000` is not published in Docker Compose; all client traffic goes through Traefik.
 
-## 🚀 Features
+### Networks
 
-- **API Gateway**: Single entry point with service discovery and local caching
-- **Service Registry**: Dynamic service registration and discovery with HMAC authentication
-- **Multi-language Support**: Execute code in JavaScript, C++, and Python
-- **Isolated Execution**: Secure code execution using Docker containers
-- **Asynchronous Processing**: Queue-based job processing with BullMQ
-- **Comprehensive Logging**: Structured logging with correlation IDs
-- **Health Checks**: Service health monitoring and dependency management
-- **Scalable Architecture**: Designed for horizontal scaling with multiple service instances
-- **Network Security**: Isolated Docker networks with minimal port exposure
-- **HMAC Security**: Cryptographic request signing between services
+- **reverse-proxy**: Traefik and API Gateway
+- **backend**: API Gateway and application services
+- **execution**: Docker-in-Docker and Evaluation Service
+- **mongo_db_network**: MongoDB, Problem/Submission/Background Worker
+- **postgres_db_network**: PostgreSQL and Auth Service
+- **redis_network**: Redis and dependent services
 
-## 💻 Supported Languages
+## Features
 
-| Language       | Timeout    | Docker Image | Description                        |
-| -------------- | ---------- | ------------ | ---------------------------------- |
-| **JavaScript** | 10 seconds | Node.js      | JavaScript/Node.js code execution  |
-| **C++**        | 10 seconds | GCC          | C++ code compilation and execution |
-| **Python**     | 40 seconds | Python 3     | Python code execution              |
+- **API Gateway**: Single entry point with Consul-based discovery, in-memory instance cache, and round-robin load balancing
+- **Traefik reverse proxy**: Routes external traffic to gateway replicas with health checks
+- **Consul service registry**: Auth, Problem, and Submission services register on startup with retry and periodic re-registration
+- **Contests**: Create, list, upcoming, delete; start/end time validation (future times, max 3 hours, exactly 2 problems)
+- **Contest submissions**: Async evaluation via BullMQ; Redis leaderboard updated on accepted solutions
+- **Live leaderboard**: Redis sorted sets; clients poll `GET /api/submissions/contest/leaderboard/:id`
+- **Archived leaderboard**: MongoDB persistence via background worker; `GET /api/contests/leaderboard/archived/:id`
+- **Background worker**: Contest status cron (every 2 min); leaderboard sync to DB (every 5 min)
+- **Rate limiting**: Redis token-bucket tiers (loose / moderate / strict) per route
+- **Security**: Helmet, CORS (`FRONTEND_URL`), JWT authorization at gateway
+- **Run-code deduplication**: HMAC-SHA256 cache key prevents duplicate runs for identical code
+- **Queue backpressure**: Returns 503 when submission queue waiting jobs ≥ 400
+- **Multi-language support**: JavaScript, C++, and Python
+- **Isolated execution**: Secure code execution using Docker containers
+- **Asynchronous processing**: Queue-based job processing with BullMQ
+- **HMAC authentication**: Cryptographic request signing between API Gateway and services
 
-## 📋 Prerequisites
+## Supported Languages
+
+| Language | Timeout | Docker Image | Description |
+| -------- | ------- | ------------ | ----------- |
+| **JavaScript** | 10 seconds | Node.js | JavaScript/Node.js code execution |
+| **C++** | 10 seconds | GCC | C++ code compilation and execution |
+| **Python** | 40 seconds | Python 3 | Python code execution |
+
+Language-specific settings are in `evaluation_service/src/config/language.config.ts`.
+
+## Prerequisites
 
 - Docker & Docker Compose
 
-## 🛠️ Quick Start
+## Quick Start
 
-### Using Docker Compose (Recommended)
+### Using Docker Compose (recommended)
 
 1. **Clone the repository**
 
@@ -69,139 +104,245 @@ This system consists of five main microservices:
 2. **Start all services**
 
    ```bash
-   # Production build
-   docker-compose up -d
+   # Production
+   docker compose up -d
 
-   # Development with hot reload
-   docker-compose -f compose.dev.yaml up -d
+   # Development (hot reload + Traefik dashboard)
+   docker compose -f compose.dev.yaml up -d
    ```
 
-3. **Verify services are running**
+3. **Verify the gateway is healthy**
+
    ```bash
-   curl http://localhost:3000/api/v1/health  # API Gateway
-   curl http://localhost:3000/api/v1/problem/health  # Problem Service (via Gateway)
-   curl http://localhost:3000/api/v1/submission/health  # Submission Service (via Gateway)
-   curl http://localhost:3000/api/v1/auth/health  # Auth Service (via Gateway)
+   curl http://compileX.docker.localhost/api/api-gateway/health
    ```
 
-## 🔌 API Endpoints
+   If `compileX.docker.localhost` does not resolve, add to `/etc/hosts`:
 
-All client requests should go through the **API Gateway** at `http://localhost:3000`. The gateway handles routing to the appropriate service.
+   ```
+   127.0.0.1 compileX.docker.localhost
+   127.0.0.1 traefik.docker.localhost
+   ```
 
-### API Gateway (Port 3000)
+   Proxied routes require a JWT `Authorization: Bearer <token>` header except public auth routes (`/api/auth/login`, `/api/auth/register`, `/api/auth/refreshToken`).
 
-- `GET /api/v1/health` - Gateway health check
-- `GET /api/v1/problem/*` - Routes to Problem Service
-- `GET /api/v1/submission/*` - Routes to Submission Service
-- `POST /api/v1/submission/*` - Routes to Submission Service
-- `GET /api/v1/auth/*` - Routes to Auth Service
-- `POST /api/v1/auth/*` - Routes to Auth Service
+## API Endpoints
 
-### Problem Service (via Gateway)
+All client requests go through **Traefik** → **API Gateway**. Paths below are gateway-facing. The gateway rewrites `/api/{mount}/...` to `/api/v1/{mount}/...` on the target service.
 
-- `GET /api/v1/problem/problems/search` - List all problems and search by query
-- `GET /api/v1/problem/problems/:id` - Get problem by ID
-- `POST /api/v1/problem/problems` - Create new problem
-- `PUT /api/v1/problem/problems/:id` - Update problem
-- `DELETE /api/v1/problem/problems/:id` - Delete problem
-- `GET /api/v1/problem/health` - Health check
+Only routes registered in `api_gateway/src/config/servicesInfos.ts` are accepted; unknown paths return **404** from the rate-limit middleware.
 
-### Submission Service (via Gateway)
+Rate limit tiers: **loose** (120/min cap), **moderate** (30/min), **strict** (10/min).
 
-- `POST /api/v1/submission/submissions` - Create new submission
-- `GET /api/v1/submission/submissions/:id` - Get submission details
-- `GET /api/v1/submission/health` - Health check
+### API Gateway
 
-### Auth Service (via Gateway)
+| Method | Path | Auth | Rate limit | Description |
+| ------ | ---- | ---- | ---------- | ------------- |
+| GET | `/api/api-gateway/health` | — | — | Gateway health (exempt from rate limiting) |
 
-- `POST /api/v1/auth/auth/register` - Register a new user
-- `POST /api/v1/auth/auth/login` - Login user
-- `GET /api/v1/auth/auth/:id` - Get user details
-- `PUT /api/v1/auth/auth/refreshToken` - Refresh access token
-- `PATCH /api/v1/auth/auth/:id` - Update user details
-- `GET /api/v1/auth/auth/health` - Health check
+### Auth Service (`/api/auth` → `auth-service`)
 
-## ⚙️ Configuration
+| Method | Path | Auth | Rate limit | Description |
+| ------ | ---- | ---- | ---------- | ------------- |
+| POST | `/api/auth/login` | Public | strict | Login |
+| POST | `/api/auth/register` | Public | strict | Register |
+| PUT | `/api/auth/refreshToken` | Public | strict | Refresh token |
+| GET | `/api/auth/me` | JWT | loose | Get user details |
+| PATCH | `/api/auth/:id` | JWT | strict | Update user details |
 
-Environment variables can be set in `.env` files or Docker Compose:
+### Problem Service (`/api/problems` → `problem-service`)
 
-### HMAC Authentication
+| Method | Path | Auth | Rate limit | Description |
+| ------ | ---- | ---- | ---------- | ------------- |
+| GET | `/api/problems/search` | JWT | loose | List/search problems |
+| GET | `/api/problems/:id` | JWT | loose | Get problem details |
+| POST | `/api/problems` | JWT | strict | Create problem (PROBLEM_SETTER) |
+| PUT | `/api/problems/:id` | JWT | strict | Update problem (PROBLEM_SETTER) |
+| DELETE | `/api/problems/:id` | JWT | strict | Delete problem (ADMIN) |
 
-Services use HMAC-SHA256 signatures for secure inter-service communication:
+### Contests (`/api/contests` → `problem-service`)
 
-| Variable | Description |
-|----------|-------------|
-| `API_GATEWAY_HMAC_SHARED_SECRET` | Secret for API Gateway to sign requests to services |
+Same backend as Problem Service; separate gateway mount.
 
-### Service Registration
+| Method | Path | Auth | Rate limit | Description |
+| ------ | ---- | ---- | ---------- | ------------- |
+| GET | `/api/contests` | JWT | moderate | Get all contests |
+| GET | `/api/contests/upcoming` | JWT | moderate | Get upcoming contests |
+| GET | `/api/contests/leaderboard/archived/:id` | JWT | moderate | Archived contest leaderboard |
+| POST | `/api/contests` | JWT | strict | Create contest |
+| GET | `/api/contests/:id` | JWT | strict | Get contest details |
+| DELETE | `/api/contests/:id` | JWT | strict | Delete upcoming contest |
 
-Each service registers with the Registry Service on startup:
+### Submission Service (`/api/submissions` → `submission-service`)
 
-- **Auth Service**: Registers with service name `auth-service`
-- **Problem Service**: Registers with service name `problem-service`
-- **Submission Service**: Registers with service name `submission-service`
-- **Evaluation Service**: Registers with service name `evaluation-service`
-- **API Gateway**: Maintains local cache of registered services
+| Method | Path | Auth | Rate limit | Description |
+| ------ | ---- | ---- | ---------- | ------------- |
+| POST | `/api/submissions/submit` | JWT | strict | Submit solution |
+| POST | `/api/submissions/contest` | JWT | strict | Submit contest solution |
+| POST | `/api/submissions/run` | JWT | moderate | Run code |
+| GET | `/api/submissions/run/:id` | JWT | loose | Run code status |
+| GET | `/api/submissions/problem/:id` | JWT | moderate | Get submissions for a problem |
+| GET | `/api/submissions/:id` | JWT | moderate | Get submission by ID |
+| GET | `/api/submissions/contest/leaderboard/:id` | JWT | loose | Live contest leaderboard |
 
-### Network Configuration
+## Configuration
 
-Production (`docker-compose.yaml`) uses isolated networks:
+Environment variables are set in Docker Compose (`docker-compose.yaml` for production, `compose.dev.yaml` for development).
 
-- **backend**: Shared network for API Gateway and all services
-- **execution**: Isolated network for Docker-in-Docker and Evaluation Service
-- **mongo_db_network**: Isolated network for MongoDB and Problem/Submission services
-- **postgres_db_network**: Isolated network for PostgreSQL and Auth service
-- **redis_network**: Isolated network for Redis and dependent services
+### Shared secrets
 
-### Language Configuration
+| Variable | Used by | Description |
+| -------- | ------- | ----------- |
+| `API_GATEWAY_HMAC_SHARED_SECRET` | API Gateway, Auth, Problem, Submission | HMAC signing for gateway → service requests |
+| `INTERNAL_HMAC_SHARED_SECRET` | Problem, Submission | Internal service-to-service calls (e.g. contest fetch) |
+| `REDIS_URL` | API Gateway, Submission, Evaluation, Background Worker | `redis://redis:6379` |
 
-Language-specific settings are configured in `evaluation_service/src/config/language.config.ts`:
+### API Gateway (`api-gateway`)
 
-- **JavaScript**: 20 second execution timeout
-- **C++**: 10 second execution timeout
-- **Python**: 40 second execution timeout
+| Variable | Production | Development |
+| -------- | ------------ | ------------- |
+| `PORT` | `3000` | `3000` |
+| `NODE_ENV` | `production` | `development` |
+| `SERVICE_NAME` | `api-gateway` | `api-gateway` |
+| `FRONTEND_URL` | `http://localhost:5173` | `http://localhost:5173` |
+| `REDIS_URL` | `redis://redis:6379` | `redis://redis:6379` |
+| `API_GATEWAY_HMAC_SHARED_SECRET` | set in compose | set in compose |
+| `JWT_ACCESS_SECRET` | not in compose (uses code default; must match auth-service) | same |
 
-## 🔍 Monitoring & Logging
+### Auth Service (`auth-service`)
+
+| Variable | Production | Development |
+| -------- | ------------ | ------------- |
+| `PORT` | `3002` | `3002` |
+| `NODE_ENV` | `production` | `development` |
+| `SERVICE_NAME` | `auth-service` | `auth-service` |
+| `DB_HOST` | `postgres` | `postgres` |
+| `DB_PORT` | `5432` | `5432` |
+| `DB_NAME` | `auth_db` | `auth_db` |
+| `DB_USER` | `postgres` | `postgres` |
+| `DB_PASSWORD` | `postgres` | `postgres` |
+| `JWT_ACCESS_SECRET` | set in compose | set in compose |
+| `JWT_REFRESH_SECRET` | set in compose | set in compose |
+| `JWT_ACCESS_EXPIRES_IN` | `1h` | `24h` |
+| `JWT_REFRESH_EXPIRES_IN` | `7d` | `7d` |
+| `API_GATEWAY_HMAC_SHARED_SECRET` | set in compose | set in compose |
+
+### Problem Service (`problem-service`)
+
+| Variable | Production | Development |
+| -------- | ------------ | ------------- |
+| `PORT` | `3010` | `3010` |
+| `NODE_ENV` | `production` | `development` |
+| `SERVICE_NAME` | `problem-service` | `problem-service` |
+| `DB_URI` | `mongodb://mongo:27017/leetcode_problem_service` | same |
+| `API_GATEWAY_HMAC_SHARED_SECRET` | set in compose | set in compose |
+| `INTERNAL_HMAC_SHARED_SECRET` | set in compose | set in compose |
+
+### Submission Service (`submission-service`)
+
+| Variable | Production | Development |
+| -------- | ------------ | ------------- |
+| `PORT` | `3020` | `3020` |
+| `NODE_ENV` | `production` | `development` |
+| `SERVICE_NAME` | `submission-service` | `submission-service` |
+| `DB_URI` | `mongodb://mongo:27017/leetcode_submission_service` | same |
+| `PROBLEM_SERVICE_URL` | `http://problem-service:3010/api/v1` | same |
+| `REDIS_URL` | `redis://redis:6379` | same |
+| `SUBMISSION_QUEUE_NAME` | `submission_queue` | same |
+| `EVALUATION_JOB_NAME` | `evaluate-submission` | same |
+| `STATUS_UPDATE_QUEUE_NAME` | `status_update_queue` | same |
+| `STATUS_UPDATE_JOB_NAME` | `update-submission-status` | same |
+| `CONTEST_SUBMISSION_STATUS_UPDATE_JOB_NAME` | `contest-submission-status-update-status` | same |
+| `API_GATEWAY_HMAC_SHARED_SECRET` | set in compose | set in compose |
+| `INTERNAL_HMAC_SHARED_SECRET` | set in compose | set in compose |
+
+### Evaluation Service (`evaluation-service`)
+
+| Variable | Value |
+| -------- | ----- |
+| `PORT` | `3030` |
+| `PROBLEM_SERVICE_URL` | `http://problem-service:3010/api/v1` |
+| `SUBMISSION_SERVICE_URL` | `http://submission-service:3020/api/v1` |
+| `REDIS_URL` | `redis://redis:6379` |
+| `DOCKER_HOST` | `tcp://dind:2375` |
+| `SERVICE_NAME` | `evaluation-service` |
+| `SUBMISSION_QUEUE_NAME` | `submission_queue` |
+| `EVALUATION_JOB_NAME` | `evaluate-submission` |
+| `STATUS_UPDATE_QUEUE_NAME` | `status_update_queue` |
+| `STATUS_UPDATE_JOB_NAME` | `update-submission-status` |
+| `CONTEST_SUBMISSION_STATUS_UPDATE_JOB_NAME` | `contest-submission-status-update-status` |
+
+### Background Worker Service (`background-worker-service`)
+
+| Variable | Production | Development |
+| -------- | ------------ | ------------- |
+| `NODE_ENV` | `production` | `development` |
+| `SERVICE_NAME` | `background-worker-service` | same |
+| `PROBLEM_DB_URI` | `mongodb://mongo:27017/leetcode_problem_service` | same |
+| `REDIS_URL` | `redis://redis:6379` | same |
+
+No HTTP port; runs scheduled jobs only.
+
+### Service registration (Consul)
+
+Services that register with Consul on startup:
+
+- **auth-service** — 5 retries at 5s intervals; HTTP health check on `/api/v1/auth/health/consul`
+- **problem-service** — same pattern on `/api/v1/problems/health/consul`
+- **submission-service** — same pattern on `/api/v1/submissions/health/consul`
+
+The API Gateway polls Consul every 30s for healthy (`passing`) instances and load-balances with round-robin.
+
+## Security and networking
+
+- **Traefik**: Single public entry on port 80; internal services are not directly exposed
+- **JWT**: Gateway validates access tokens; public routes: login, register, refreshToken
+- **HMAC**: Gateway signs proxied requests; Submission Service uses internal HMAC for contest metadata
+- **Consul**: Only healthy instances are discovered by the gateway
+- **Rate limiting**: Per-route tiers enforced before proxying; returns 429 when exceeded
+- **Helmet & CORS**: Security headers and origin restricted to `FRONTEND_URL`
+- **Network isolation**: Services communicate over isolated Docker networks
+
+## Monitoring and logging
 
 - **Winston Logger**: Structured logging with daily rotation
 - **Correlation IDs**: Request tracking across services
-- **Health Checks**: `/api/v1/health` endpoints
-- **Morgan Middleware**: HTTP request logging
-- **Queue Monitoring**: BullMQ job status and metrics
+- **Health checks**: Gateway at `/api/api-gateway/health`; services expose `/health` and `/health/consul`
+- **Morgan Middleware**: HTTP request logging at gateway
+- **Queue monitoring**: BullMQ job status via Redis
 
 ### Logs
 
 ```bash
 # View service logs
-docker-compose logs api-gateway
-docker-compose logs registry-service
-docker-compose logs problem-service
-docker-compose logs submission-service
-docker-compose logs evaluation-service
-docker-compose logs auth-service
+docker compose logs api-gateway
+docker compose logs auth-service
+docker compose logs problem-service
+docker compose logs submission-service
+docker compose logs evaluation-service
+docker compose logs background-worker-service
+docker compose logs reverse-proxy
+docker compose logs consul-client
 
 # View all logs
-docker-compose logs -f
+docker compose logs -f
 ```
 
-## 🏭 Scaling & Multiple Instances
+## Scaling and multiple instances
 
-### Development Mode (compose.dev.yaml)
+### Development (`compose.dev.yaml`)
 
-Supports running multiple instances of services:
+Default replicas:
+
+- **api-gateway**: 2
+- **problem-service**: 2
+- **submission-service**: 2
+
+Traefik load-balances across gateway replicas with health checks.
 
 ```bash
-# Run multiple evaluation service instances
-docker-compose -f compose.dev.yaml up -d --scale evaluation-service=3
+# Scale evaluation workers (optional)
+docker compose -f compose.dev.yaml up -d --scale evaluation-service=3
 ```
 
-Submission Service is configured with `deploy.replicas: 2` by default in development.
 
-### Production Mode (docker-compose.yaml)
-
-Uses Docker Swarm-compatible `deploy.replicas` for horizontal scaling:
-
-```bash
-# Deploy with Docker Swarm
-docker stack deploy -c docker-compose.yaml CompileX
-```
