@@ -52,8 +52,8 @@ export const createProxy = (serviceDetail: {
 
     pathRewrite: { "^/": `/api/v1/${serviceDetail.name}/` },
 
-    proxyTimeout: 5000, // upstream service must respond within 5s
-    timeout: 10000, // client must finish sending request within 10s
+    proxyTimeout: 10000, // upstream service must respond within 10s
+    timeout: 15000, // client must finish sending request within 15s
 
     on: {
       proxyReq: (proxyReq, req: any) => {

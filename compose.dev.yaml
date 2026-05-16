@@ -16,6 +16,7 @@ services:
     labels:
       - "traefik.enable=false"
 
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -32,6 +33,7 @@ services:
       - redis_data:/data
     labels:
       - "traefik.enable=false"
+
 
   postgres:
     image: postgres:16-alpine
@@ -91,32 +93,6 @@ services:
     labels:
       - "traefik.enable=false"
 
-  
-  reverse-proxy:
-    image: traefik:v3.7
-    restart: unless-stopped
-    command:
-      - "--providers.docker=true"
-      - "--entrypoints.web.address=:80"
-
-      # API & Dashboard   (only for dev)
-      - "--api.dashboard=true"
-      - "--api.insecure=true"
-      
-    ports:
-      - 80:80
-      - 8080:8080
-    volumes:  
-      - /var/run/docker.sock:/var/run/docker.sock:ro    # mounts the docker socket for traefik to discover containers
-    networks:
-      - reverse-proxy
-      - backend
-    labels:   # for traefik dashboard (for dev only, access dashboard at http://traefik.docker.localhost)
-      - "traefik.enable=true"
-      - "traefik.http.routers.dashboard.rule=Host(`traefik.docker.localhost`)"
-      - "traefik.http.routers.dashboard.service=api@internal"
-
-
       
   migrate:
     build:
@@ -159,7 +135,31 @@ services:
     labels:
       - "traefik.enable=false"
 
-  
+
+  reverse-proxy:
+    image: traefik:v3.7
+    restart: unless-stopped
+    command:
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+
+      # API & Dashboard   (only for dev)
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      
+    ports:
+      - 80:80
+      - 8080:8080
+    volumes:  
+      - /var/run/docker.sock:/var/run/docker.sock:ro    # mounts the docker socket for traefik to discover containers
+    networks:
+      - reverse-proxy
+      - backend
+    labels:   # for traefik dashboard (for dev only, access dashboard at http://traefik.docker.localhost)
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.docker.localhost`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+
 
   api-gateway:
     build:
@@ -176,6 +176,7 @@ services:
       - SERVICE_NAME=api-gateway
       - API_GATEWAY_HMAC_SHARED_SECRET=3049sKKJDIWEO2983023909234
       - FRONTEND_URL=http://localhost:5173
+      - REDIS_URL=redis://redis:6379
     volumes:
       - ./api_gateway/src:/leetcode-server/api-gateway/src
       - ./api_gateway/package.json:/leetcode-server/api-gateway/package.json
@@ -184,15 +185,16 @@ services:
     networks:
       - backend
       - reverse-proxy
+      - redis_network
+    depends_on:
+      consul-client:
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/api-gateway/health"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 20s
-    depends_on:
-      consul-client:
-        condition: service_started
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=reverse-proxy"
@@ -234,6 +236,7 @@ services:
       - mongo_db_network
     labels:
       - "traefik.enable=false"
+
 
   submission-service:
     build:
@@ -281,6 +284,7 @@ services:
     labels:
       - "traefik.enable=false"
 
+
   evaluation-service:
     build:
       context: ./evaluation_service
@@ -321,6 +325,7 @@ services:
     labels:
       - "traefik.enable=false"
 
+
   auth-service:
     build:
       context: ./auth_service
@@ -360,6 +365,7 @@ services:
       - postgres_db_network
     labels:
       - "traefik.enable=false"
+  
   
   background-worker-service:
     build:

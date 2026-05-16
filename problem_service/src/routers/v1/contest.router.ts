@@ -34,6 +34,8 @@ contestRouter.get(
   "/leaderboard/archived/:id",
   contestController.getContestLeaderboard,
 );
+
 contestRouter.get("/:id", contestController.getContest);
+contestRouter.delete("/:id", contestController.deleteContest);
 
 export default contestRouter;

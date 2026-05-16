@@ -19,6 +19,8 @@ import {
   removeStaleInstancesInterval,
   startCacheRefresher,
 } from "./utils/refresh.services";
+import { rateLimitMiddleware } from "./middlewares/rateLimit.middleware";
+import { redisConnection } from "./config/redis.config";
 
 const app = express();
 
@@ -41,7 +43,10 @@ app.use(
   }),
 );
 
+
 app.use("/api", v1Router);
+
+app.use(rateLimitMiddleware);
 
 app.use(
   "/api/auth",
@@ -82,6 +87,7 @@ app.use(genericErrorHandler);
 
 async function initializeConnection() {
   try {
+    await redisConnection.connect();
     logger.info("All connections initialized successfully");
   } catch (error) {
     logger.error("Error initializing connection:", error);

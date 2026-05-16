@@ -12,10 +12,6 @@ export class InstanceService {
   private readonly HEARTBEAT_TIMEOUT = 120_000; // 2 minutes
   constructor(private serviceInstanceRepository: InstanceRepository) {}
 
-  private verifyServiceSignature() {
-    return true;
-  }
-
   cleanupStaleInstances() {
     const now = Date.now();
 
@@ -23,7 +19,6 @@ export class InstanceService {
       this.serviceInstanceRepository.getAllServicesFromCache();
 
     for (const [serviceName, instances] of allServices.entries()) {
-
       const staleInstances = instances.filter(
         (instance) =>
           now - new Date(instance.lastHeartbeat).getTime() >
@@ -47,12 +42,6 @@ export class InstanceService {
     serviceName: string,
     serviceInstance: ServiceInstance[],
   ) {
-    const isSignatureValid = this.verifyServiceSignature();
-
-    if (!isSignatureValid) {
-      throw new BadRequestError("Invalid service signature");
-    }
-
     let result = [];
 
     const serviceInstances =
@@ -75,7 +64,7 @@ export class InstanceService {
         logger.debug(
           `Instance ${instance.instanceId} of ${serviceName} was already present in the cache updated the last heartbeat`,
         );
-        
+
         continue;
       }
 

@@ -3,7 +3,7 @@ import logger from "../config/logger.config";
 import * as jwt from "jsonwebtoken";
 import { serverConfig } from "../config";
 import { AuthRequest } from "../types/request.types";
-import { publicAPIs } from "../config/servicesInfos";
+import {  publicRoutes } from "../config/servicesInfos";
 
 export const authorize = (
   req: AuthRequest,
@@ -11,7 +11,7 @@ export const authorize = (
   next: NextFunction,
 ) => {
   try {
-    if (publicAPIs.includes(req.originalUrl)) {
+    if (publicRoutes.includes(req.originalUrl)) {
       return next();
     }
 

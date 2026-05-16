@@ -59,5 +59,14 @@ export class ContestController {
       data: leaderboard,
     });
   };
+
+  deleteContest = async (req: Request, res: Response) => {
+    await this.contestService.deleteContest(req.params.id);
+
+    res.status(200).json({
+      success: true,
+      message: "Contest deleted successfully",
+    });
+  };
 }
 

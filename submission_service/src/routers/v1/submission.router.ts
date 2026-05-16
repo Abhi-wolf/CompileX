@@ -19,7 +19,7 @@ submissionRouter.use(verifyHAMCSignature);
 
 // POST /submissions - Create a new submission
 submissionRouter.post(
-  "/",
+  "/submit",
   authorize,
   validateRequestBody(createSubmissionSchema),
   submissionController.createSubmission,

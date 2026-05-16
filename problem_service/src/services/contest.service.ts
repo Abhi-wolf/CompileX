@@ -72,4 +72,18 @@ export class ContestService {
       contestId,
     );
   }
+
+  async deleteContest(id: string) {
+    // only upcoming contests can be deleted
+    const contest = await this.contestRepository.getContestById(id);
+
+    if (!contest) {
+      throw new NotFoundError("Contest not found");
+    }
+    if (contest.startTime < new Date()) {
+      throw new BadRequestError("Contest has already started");
+    }
+
+    return await this.contestRepository.deleteContest(id);
+  }
 }

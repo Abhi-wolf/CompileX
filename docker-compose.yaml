@@ -11,6 +11,9 @@ services:
       - mongo_db_network
     volumes:
       - leetcode_mongo_data:/data/db
+    labels:
+      - "traefik.enable=false"
+
 
   redis:
     image: redis:7-alpine
@@ -24,7 +27,10 @@ services:
       - redis_network
     volumes:
       - redis_data:/data
+    labels:
+      - "traefik.enable=false"
   
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -41,7 +47,10 @@ services:
       - postgres_db_network
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    labels:
+      - "traefik.enable=false"
     
+
   consul-client:
     image: hashicorp/consul
     command: agent -retry-join=consul-server-1 -client=0.0.0.0
@@ -51,24 +60,33 @@ services:
       - 8500:8500
     networks:
       - backend   
+    labels:
+      - "traefik.enable=false"
   
   consul-server-1:
     image: hashicorp/consul
     command: agent -server -bootstrap-expect=3 -node=consul-1 -bind=0.0.0.0 -client=0.0.0.0
     networks:
       - backend 
+    labels:
+      - "traefik.enable=false"
 
   consul-server-2:
     image: hashicorp/consul
     command: agent -server -bootstrap-expect=3 -retry-join=consul-server-1 -node=consul-2
     networks:
       - backend 
+    labels:
+      - "traefik.enable=false"
 
   consul-server-3:
     image: hashicorp/consul
     command: agent -server -bootstrap-expect=3 -retry-join=consul-server-1 -node=consul-3 
     networks:
       - backend 
+    labels:
+      - "traefik.enable=false"
+
 
   migrate:
     build:
@@ -88,6 +106,9 @@ services:
     restart: on-failure
     networks:
       - postgres_db_network
+    labels:
+      - "traefik.enable=false"
+
 
   # docker inside docker
   # privileged: true is required for Docker-in-Docker (DinD) because the inner Docker daemon (dockerd) needs
@@ -105,6 +126,25 @@ services:
       retries: 3
     networks:
       - execution
+    labels:
+      - "traefik.enable=false"
+
+  
+  reverse-proxy:
+    image: traefik:v3.7
+    restart: unless-stopped
+    command:
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--api.insecure=true"  # for HTTP requests
+    ports:
+      - 80:80
+      - 8080:8080
+    volumes:  
+      - /var/run/docker.sock:/var/run/docker.sock:ro    # mounts the docker socket for traefik to discover containers
+    networks:
+      - reverse-proxy
+      - backend
 
 
   api-gateway:
@@ -122,9 +162,26 @@ services:
       - FRONTEND_URL=http://localhost:5173
     networks:
       - backend
+      - reverse-proxy
     depends_on:
       consul-client:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/api-gateway/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=reverse-proxy"
+      - "traefik.http.routers.api-gateway.rule=Host(`compileX.docker.localhost`)"
+      - "traefik.http.routers.api-gateway.entrypoints=web"
+      - "traefik.http.services.api-gateway.loadbalancer.server.port=3000"
+      - "traefik.http.services.api-gateway.loadbalancer.healthcheck.path=/api/api-gateway/health"
+      - "traefik.http.services.api-gateway.loadbalancer.healthcheck.interval=10s"
+      - "traefik.http.services.api-gateway.loadbalancer.healthcheck.timeout=3s"
+      - "traefik.http.services.api-gateway.loadbalancer.healthcheck.port=3000"
 
 
   problem-service:
@@ -147,6 +204,8 @@ services:
     networks:
       - backend
       - mongo_db_network
+    labels:
+      - "traefik.enable=false"
 
 
   submission-service:
@@ -183,6 +242,9 @@ services:
       - backend
       - mongo_db_network
       - redis_network
+    labels:
+      - "traefik.enable=false"
+
 
   evaluation-service:
     build:
@@ -212,6 +274,8 @@ services:
       - backend
       - execution
       - redis_network
+    labels:
+      - "traefik.enable=false"
 
 
   auth-service:
@@ -245,6 +309,9 @@ services:
     networks:
       - backend
       - postgres_db_network
+    labels:
+      - "traefik.enable=false"
+
   
   background-worker-service:
     build:
@@ -264,8 +331,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    labels:
+      - "traefik.enable=false"
+
 
 networks:
+  reverse-proxy:
+    driver: bridge
   backend:        # shared / API layer
     driver: bridge
   execution:      # isolated for dind + evaluation only
@@ -276,6 +348,7 @@ networks:
     driver: bridge
   redis_network:
     driver: bridge
+
 
 volumes:
   redis_data:

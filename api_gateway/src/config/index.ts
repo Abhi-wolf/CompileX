@@ -8,6 +8,7 @@ type ServerConfig = {
   API_GATEWAY_HMAC_SHARED_SECRET: string;
   JWT_ACCESS_SECRET: string;
   FRONTEND_URL: string;
+  REDIS_URL: string;
 };
 
 function loadEnv() {
@@ -29,4 +30,6 @@ export const serverConfig: ServerConfig = {
     process.env.JWT_ACCESS_SECRET || "ldfjsdfkEKFHWK#&!#*81273",
 
   FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:5173",
+
+  REDIS_URL: process.env.REDIS_URL || "redis://localhost:6379",
 };
