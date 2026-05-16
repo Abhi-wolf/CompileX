@@ -22,7 +22,7 @@ export class ContestRepository {
   }
 
   async getAllContests(): Promise<IContest[]> {
-    return await Contest.find().select("id name startTime endTime");
+    return await Contest.find().select("id name startTime endTime status");
   }
 
   async getContestsByStartTime(startTime: Date): Promise<IContest[]> {

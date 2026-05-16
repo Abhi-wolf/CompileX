@@ -152,17 +152,19 @@ services:
       context: ./api_gateway
       dockerfile: Dockerfile
     restart: unless-stopped
-    ports:
-      - 3000:3000
+    # ports:
+    #   - 3000:3000
     environment:
       - PORT=3000
       - NODE_ENV=production
       - SERVICE_NAME=api-gateway
       - API_GATEWAY_HMAC_SHARED_SECRET=3049sKKJDIWEO2983023909234
       - FRONTEND_URL=http://localhost:5173
+      - REDIS_URL=redis://redis:6379
     networks:
       - backend
       - reverse-proxy
+      - redis_network
     depends_on:
       consul-client:
         condition: service_started
@@ -215,8 +217,8 @@ services:
     restart: unless-stopped
     deploy:
       replicas: 2
-    ports:
-      - 3020-3021:3020
+    # ports:
+    #   - 3020-3021:3020
     environment:
       - PORT=3020
       - DB_URI=mongodb://mongo:27017/leetcode_submission_service

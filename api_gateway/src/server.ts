@@ -116,6 +116,7 @@ async function startServer() {
         logger.info("HTTP server closed");
 
         try {
+          await redisConnection.disconnect();
           logger.info("All connections closed successfully");
           process.exit(0);
         } catch (error) {

@@ -34,7 +34,7 @@ export const moderateRoutes = [
   { path: "/api/submissions/problem/:id", method: "GET" }, // get submission details
 
   { path: "/api/contests", method: "GET" }, // get all contests details
-  { path: "/api/contests/leaderboard/archived", method: "GET" }, // get contest archieved leaderboard
+  { path: "/api/contests/leaderboard/archived/:id", method: "GET" }, // get contest archieved leaderboard
 ];
 
 export const strictRoutes = [

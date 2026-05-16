@@ -16,9 +16,7 @@ export class ContestService {
   }
 
   async createContest(contest: CreateContestDto) {
-    if (contest.startTime < new Date()) {
-      throw new Error("Start time must be in the future");
-    }
+    console.log("CONTEST DETAILS=", contest);
 
     if (
       contest.startTime >= contest.endTime ||
@@ -26,8 +24,17 @@ export class ContestService {
         new Date(contest.startTime).getTime() >
         3 * 60 * 60 * 1000
     ) {
-      throw new Error(
+      throw new BadRequestError(
         "Start time must be before end time and duration must be less than or equal to 3 hours",
+      );
+    }
+
+    if (
+      new Date(contest.startTime) < new Date() ||
+      new Date(contest.endTime) < new Date()
+    ) {
+      throw new BadRequestError(
+        "Start time and end time must be in the future",
       );
     }
 

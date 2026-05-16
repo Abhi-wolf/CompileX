@@ -16,7 +16,7 @@ class MongoConnection {
         return this.connection;
       }
 
-      console.log("DB URL = ",serverConfig.PROBLEM_DB_URI)
+      // console.log("DB URL = ",serverConfig.PROBLEM_DB_URI)
       await mongoose.connect(serverConfig.PROBLEM_DB_URI, {
         maxPoolSize: 20,
         minPoolSize: 5,
