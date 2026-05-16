@@ -2,23 +2,6 @@
 
 A scalable microservices-based backend system for running and evaluating code submissions, similar to LeetCode. Built with Node.js, TypeScript, and Docker.
 
-## Architecture
-
-```mermaid
-flowchart TB
-  Client --> Traefik[Traefik :80]
-  Traefik --> GW[api-gateway]
-  GW --> Consul[Consul health API]
-  GW --> Auth[auth-service]
-  GW --> Problem[problem-service]
-  GW --> Submission[submission-service]
-  Submission --> Redis[(Redis)]
-  Submission --> Eval[evaluation-service]
-  Eval --> DinD[Docker-in-Docker]
-  BW[background-worker-service] --> Mongo[(Mongo problem DB)]
-  BW --> Redis
-  Problem --> Mongo
-```
 
 ### Microservices
 
